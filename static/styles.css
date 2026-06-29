@@ -329,6 +329,10 @@ h1 {
   line-height: 1.42;
 }
 
+.hero-copy-secondary {
+  margin-top: 8px;
+}
+
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
