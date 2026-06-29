@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CapitalEyes | Backtest Engine</title>
+    <meta
+      name="description"
+      content="Motore di backtest CapitalEyes con dati daily adjusted close, asset pesati, rebalance, PAC e PIC."
+    />
+    <link rel="stylesheet" href="/backtest.css" />
+  </head>
+  <body>
+    <div class="terminal-shell">
+      <aside class="side-panel">
+        <a class="brand" href="/">
+          <span>CE</span>
+          <strong>CapitalEyes</strong>
+        </a>
+
+        <nav class="side-nav" aria-label="Navigazione platform">
+          <a class="active" href="/backtest">Backtest</a>
+          <a href="/portfolio-tracker">Portfolio Tracker</a>
+          <a href="/cycle-life-budgeting">Cycle Life Budgeting</a>
+          <a href="/e-learning">E-Learning</a>
+        </nav>
+
+        <div class="data-card">
+          <span class="live-dot"></span>
+          <div>
+            <strong>Market Data EOD</strong>
+            <small>Adjusted close daily, scaricato al lancio del backtest.</small>
+          </div>
+        </div>
+      </aside>
+
+      <main class="engine-page">
+        <header class="engine-header">
+          <div>
+            <p class="eyebrow">Backtest engine</p>
+            <h1>Portfolio Lab</h1>
+          </div>
+          <a class="home-link" href="/platform">Platform</a>
+        </header>
+
+        <section class="control-grid" id="engine">
+          <article class="panel search-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Asset search</p>
+                <h2>Aggiungi titoli uno a uno</h2>
+              </div>
+            </div>
+
+            <div class="search-box">
+              <input id="asset-search" placeholder="Cerca ticker o nome, es. Apple, SPY, Eni..." autocomplete="off" />
+              <button id="manual-add" type="button">Aggiungi</button>
+            </div>
+            <div class="search-results" id="search-results" aria-live="polite"></div>
+
+            <div class="asset-table-wrap" id="portfolio">
+              <table class="asset-table">
+                <thead>
+                  <tr>
+                    <th>Ticker</th>
+                    <th>Nome</th>
+                    <th>Peso</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="asset-body"></tbody>
+              </table>
+            </div>
+            <div class="weight-state" id="weight-state">Totale 100%</div>
+          </article>
+
+          <article class="panel settings-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Scenario</p>
+                <h2>Regole investimento</h2>
+              </div>
+            </div>
+
+            <form id="backtest-form" class="settings-form">
+              <div class="mode-switch" role="group" aria-label="Modalita investimento">
+                <button class="active" type="button" data-mode="pic">PIC</button>
+                <button type="button" data-mode="pac">PAC</button>
+              </div>
+
+              <label>
+                <span>Data iniziale</span>
+                <input id="start" type="date" />
+              </label>
+              <label>
+                <span>Data finale</span>
+                <input id="end" type="date" />
+              </label>
+              <label>
+                <span>Capitale iniziale</span>
+                <input id="initial" type="number" min="0" step="100" value="10000" />
+              </label>
+              <label>
+                <span>Valuta investimento</span>
+                <select id="base-currency">
+                  <option value="EUR" selected>EUR</option>
+                  <option value="USD">USD</option>
+                  <option value="GBP">GBP</option>
+                  <option value="CHF">CHF</option>
+                  <option value="JPY">JPY</option>
+                  <option value="CAD">CAD</option>
+                  <option value="AUD">AUD</option>
+                </select>
+              </label>
+              <label class="pac-field">
+                <span>Versamento PAC</span>
+                <input id="contribution" type="number" min="0" step="50" value="500" />
+              </label>
+              <label class="pac-field">
+                <span>Frequenza PAC</span>
+                <select id="contribution-frequency">
+                  <option value="monthly">Mensile</option>
+                  <option value="quarterly">Trimestrale</option>
+                  <option value="yearly">Annuale</option>
+                </select>
+              </label>
+              <label>
+                <span>Ribilanciamento</span>
+                <select id="rebalance">
+                  <option value="monthly">Mensile</option>
+                  <option value="quarterly">Trimestrale</option>
+                  <option value="yearly">Annuale</option>
+                  <option value="none">Nessuno</option>
+                </select>
+              </label>
+              <label>
+                <span>Benchmark</span>
+                <input id="benchmark" value="SPY" placeholder="Vuoto = nessun benchmark" spellcheck="false" />
+              </label>
+              <label>
+                <span>Commissioni trading (%)</span>
+                <input id="fee" type="number" min="0" max="5" step="0.01" value="0.00" />
+              </label>
+
+              <button class="run-button" id="run-button" type="submit">Esegui backtest</button>
+              <p class="form-message" id="form-message">Pronto.</p>
+            </form>
+          </article>
+        </section>
+
+        <section class="metric-grid" id="results">
+          <article><span>Valore finale</span><strong id="metric-final">-</strong><small id="metric-benchmark">Benchmark -</small></article>
+          <article><span>Capitale investito</span><strong id="metric-invested">-</strong><small id="metric-contributions">Versamenti -</small></article>
+          <article><span>Guadagno netto</span><strong id="metric-profit">-</strong><small id="metric-fees">Costi -</small></article>
+          <article><span>Rendimento totale</span><strong id="metric-return">-</strong><small id="metric-twr">TWR -</small></article>
+          <article><span>MWR annualizzato</span><strong id="metric-mwr">-</strong><small id="metric-cagr">CAGR -</small></article>
+          <article><span>Drawdown max</span><strong id="metric-drawdown">-</strong><small id="metric-worst-day">Worst day -</small></article>
+          <article><span>Volatilita</span><strong id="metric-volatility">-</strong><small id="metric-positive-days">Giorni positivi -</small></article>
+          <article><span>Sharpe</span><strong id="metric-sharpe">-</strong><small id="metric-sortino">Sortino -</small></article>
+        </section>
+
+        <section class="result-grid">
+          <article class="panel chart-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Equity curve</p>
+                <h2>Portfolio vs capitale investito</h2>
+              </div>
+              <div class="chart-actions">
+                <div class="chart-legend" aria-label="Legenda equity curve">
+                  <span><i class="legend-dot portfolio"></i>Portfolio</span>
+                  <span><i class="legend-dot invested"></i>Capitale investito</span>
+                  <span id="benchmark-legend"><i class="legend-dot benchmark"></i>Benchmark TWR</span>
+                </div>
+                <button id="export-button" type="button" disabled>CSV</button>
+              </div>
+            </div>
+            <div class="chart-stage">
+              <canvas id="equity-chart" aria-label="Equity curve"></canvas>
+              <div class="chart-tooltip" id="equity-tooltip" hidden></div>
+            </div>
+          </article>
+
+          <article class="panel allocation-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Allocation</p>
+                <h2>Pesi finali</h2>
+              </div>
+            </div>
+            <canvas id="allocation-chart" aria-label="Allocazione"></canvas>
+            <div class="allocation-list" id="allocation-list"></div>
+          </article>
+        </section>
+
+        <section class="insight-grid">
+          <article class="panel volatility-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Volatility</p>
+                <h2>Volatilita rolling 63 sedute</h2>
+              </div>
+            </div>
+            <div class="chart-stage">
+              <canvas id="volatility-chart" aria-label="Volatilita rolling"></canvas>
+              <div class="chart-tooltip" id="volatility-tooltip" hidden></div>
+            </div>
+          </article>
+
+          <article class="panel correlation-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Correlation</p>
+                <h2>Correlazione strumenti</h2>
+              </div>
+            </div>
+            <div class="correlation-matrix" id="correlation-matrix"></div>
+          </article>
+        </section>
+
+        <section class="analysis-grid">
+          <article class="panel drawdown-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Risk path</p>
+                <h2>Drawdown storico</h2>
+              </div>
+            </div>
+            <div class="chart-stage">
+              <canvas id="drawdown-chart" aria-label="Drawdown storico"></canvas>
+              <div class="chart-tooltip" id="drawdown-tooltip" hidden></div>
+            </div>
+          </article>
+
+          <article class="panel stats-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Performance summary</p>
+                <h2>Statistiche principali</h2>
+              </div>
+            </div>
+            <div class="stat-list" id="stat-list"></div>
+          </article>
+        </section>
+
+        <section class="panel heatmap-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Monthly returns</p>
+              <h2>Mappa rendimenti mensili</h2>
+            </div>
+          </div>
+          <div class="monthly-heatmap" id="monthly-heatmap"></div>
+        </section>
+
+        <section class="panel returns-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Annual returns</p>
+              <h2>Riepilogo per anno</h2>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Anno</th>
+                  <th>Rendimento</th>
+                  <th>Versamenti</th>
+                  <th>Investito finale</th>
+                  <th>Valore finale</th>
+                </tr>
+              </thead>
+              <tbody id="annual-body">
+                <tr><td colspan="5" class="empty-state">Esegui un backtest.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel table-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Holdings</p>
+              <h2>Dettaglio asset</h2>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>Target</th>
+                  <th>Peso finale</th>
+                  <th>Rendimento base</th>
+                  <th>Rendimento locale</th>
+                  <th>Effetto cambio</th>
+                  <th>Volatilita</th>
+                  <th>Quote</th>
+                  <th>Mercato</th>
+                </tr>
+              </thead>
+              <tbody id="holdings-body">
+                <tr><td colspan="9" class="empty-state">Esegui un backtest.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/backtest.js" type="module"></script>
+  </body>
+</html>

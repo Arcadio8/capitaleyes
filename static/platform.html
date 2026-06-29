@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CapitalEyes | Platform</title>
+    <meta name="description" content="Area platform CapitalEyes con moduli Backtest, Portfolio Tracker, Cycle Life Budgeting ed E-Learning." />
+    <link rel="stylesheet" href="/platform.css" />
+  </head>
+  <body>
+    <main class="platform-shell">
+      <header class="platform-header">
+        <a class="brand" href="/"><span>CE</span><strong>CapitalEyes</strong></a>
+        <a class="home-link" href="/">Home</a>
+      </header>
+
+      <section class="platform-hero">
+        <p class="eyebrow">Platform modules</p>
+        <h1>Workspace</h1>
+        <p>Quattro prodotti, una sola area operativa. Backtest e Cycle Life Budgeting sono gia disponibili.</p>
+      </section>
+
+      <section class="product-summary" aria-label="Prodotti offerti">
+        <span>Backtest: test storico di portafogli con PAC, PIC, pesi e rebalance.</span>
+        <span>Portfolio Tracker: monitoraggio posizioni, performance e rischio.</span>
+        <span>Cycle Life Budgeting: budget, obiettivi, patrimonio, debiti e scenari di capitale.</span>
+        <span>E-Learning: percorsi rapidi per capire mercati, portafogli e metodo.</span>
+      </section>
+
+      <section class="module-grid" aria-label="Moduli piattaforma">
+        <a class="module-card active" href="/backtest" data-module="Backtest">
+          <span>Operational</span>
+          <h2>Backtest</h2>
+          <p>Test storico di portafogli con dati EOD, asset, pesi, rebalance, PAC e PIC.</p>
+        </a>
+        <a class="module-card" href="/portfolio-tracker" data-module="Portfolio Tracker">
+          <span>Empty page</span>
+          <h2>Portfolio Tracker</h2>
+          <p>Tracking sintetico di posizioni, andamento, rischio e risultati.</p>
+        </a>
+        <a class="module-card active" href="/cycle-life-budgeting" data-module="Cycle Life Budgeting">
+          <span>Operational</span>
+          <h2>Cycle Life Budgeting</h2>
+          <p>Studio operativo per budget mensile, obiettivi, patrimonio, debiti, scenari e liberta finanziaria.</p>
+        </a>
+        <a class="module-card" href="/e-learning" data-module="E-Learning">
+          <span>Empty page</span>
+          <h2>E-Learning</h2>
+          <p>Formazione essenziale su strumenti, rischio e costruzione portafogli.</p>
+        </a>
+      </section>
+    </main>
+    <div class="launch-overlay" id="launch-overlay" aria-hidden="true">
+      <div>
+        <span>Opening module</span>
+        <strong id="launch-title">CapitalEyes</strong>
+      </div>
+    </div>
+    <script src="/platform.js" type="module"></script>
+  </body>
+</html>

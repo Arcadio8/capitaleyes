@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CapitalEyes | Home</title>
+    <meta
+      name="description"
+      content="CapitalEyes e una piattaforma per analizzare portafogli, seguire investimenti, pianificare obiettivi e imparare a gestire il capitale."
+    />
+    <link rel="preload" href="/assets/capital-eyes-home-cinematic.png" as="image" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="intro-loader" id="intro-loader" aria-hidden="true">
+      <div class="loader-shell">
+        <div class="loader-mark">CE</div>
+        <div>
+          <span>CapitalEyes</span>
+          <small>Preparazione workspace</small>
+        </div>
+      </div>
+      <div class="loader-line"><span></span></div>
+    </div>
+
+    <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
+    <header class="site-header" id="site-header">
+      <a class="brand" href="#home" aria-label="CapitalEyes">
+        <span class="brand-mark">CE</span>
+        <span>CapitalEyes</span>
+      </a>
+      <nav class="top-nav" aria-label="Navigazione home">
+        <a href="#products">Prodotti</a>
+        <a href="#vision">Metodo</a>
+        <a href="#access">Accesso</a>
+      </nav>
+      <a class="header-action" href="/platform">Enter platform</a>
+    </header>
+
+    <main>
+      <section class="hero" id="home">
+        <div class="hero-media" aria-hidden="true"></div>
+        <canvas id="motion-canvas" class="motion-canvas" aria-hidden="true"></canvas>
+        <div class="scan-layer" aria-hidden="true"></div>
+        <div class="film-grain" aria-hidden="true"></div>
+
+        <div class="chapter-rail" aria-hidden="true">
+          <span>01</span>
+          <i></i>
+          <span>Home</span>
+        </div>
+
+        <div class="hero-content">
+          <p class="eyebrow">Portfolio intelligence suite</p>
+          <h1>CapitalEyes</h1>
+          <p class="hero-copy">
+            Una piattaforma per testare strategie, seguire portafogli, pianificare obiettivi
+            e imparare a investire con metodo.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-action" href="#vision"><span></span>Esplora la home</a>
+            <a class="secondary-action" href="/platform">Apri platform</a>
+          </div>
+        </div>
+
+        <aside class="live-panel" aria-label="Market room status">
+          <div class="panel-topline">
+            <span class="live-dot"></span>
+            <strong>Live market room</strong>
+          </div>
+          <div class="signal-list">
+            <div><span>Risk map</span><strong id="risk-value">0.74</strong></div>
+            <div><span>Alpha pulse</span><strong id="alpha-value">+1.82</strong></div>
+            <div><span>Latency</span><strong>18 ms</strong></div>
+          </div>
+          <div class="micro-chart" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+        </aside>
+
+        <div class="video-console" aria-hidden="true">
+          <div class="console-header">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div class="console-grid">
+            <i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+        </div>
+
+        <div class="ticker-reel" aria-hidden="true">
+          <div class="ticker-track">
+            <span>PORTFOLIO RISK +2.14</span>
+            <span>ALPHA MODEL 0.82</span>
+            <span>EOD DATA STREAM</span>
+            <span>DRAWDOWN CONTROL</span>
+            <span>MULTI ASSET LAB</span>
+            <span>CAPITALEYES</span>
+            <span>PORTFOLIO RISK +2.14</span>
+            <span>ALPHA MODEL 0.82</span>
+            <span>EOD DATA STREAM</span>
+            <span>DRAWDOWN CONTROL</span>
+            <span>MULTI ASSET LAB</span>
+            <span>CAPITALEYES</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="product-section reveal" id="products">
+        <div class="product-heading">
+          <p class="eyebrow">La suite CapitalEyes</p>
+          <h2>Strumenti essenziali per decidere, monitorare e crescere con pi&ugrave; metodo.</h2>
+        </div>
+
+        <div class="product-showcase">
+          <article class="product-spotlight">
+            <div class="spotlight-copy">
+              <span>CapitalEyes workspace</span>
+              <h3>Dalla simulazione alla gestione del capitale.</h3>
+              <p>
+                Un ambiente unico per mettere alla prova le idee, seguire il portafoglio,
+                pianificare obiettivi e costruire competenze finanziarie solide.
+              </p>
+            </div>
+
+            <div class="spotlight-visual" aria-hidden="true">
+              <div class="visual-grid">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <div class="visual-line one"></div>
+              <div class="visual-line two"></div>
+              <div class="visual-bars">
+                <i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+
+            <div class="spotlight-stats">
+              <div><strong>4</strong><span>moduli</span></div>
+              <div><strong>PAC</strong><span>e PIC</span></div>
+              <div><strong>Risk</strong><span>monitor</span></div>
+            </div>
+          </article>
+
+          <div class="product-list">
+            <article class="product-item active">
+              <span>01 / operativo</span>
+              <h3>Backtest</h3>
+              <p>Simula portafogli con dati storici, pesi personalizzati, PAC o PIC e ribilanciamenti.</p>
+            </article>
+            <article class="product-item">
+              <span>02 / tracking</span>
+              <h3>Portfolio Tracker</h3>
+              <p>Controlla composizione, andamento e risultati del portafoglio in modo ordinato.</p>
+            </article>
+            <article class="product-item">
+              <span>03 / planning</span>
+              <h3>Cycle Life Budgeting</h3>
+              <p>Collega risparmio, spese e obiettivi alle diverse fasi della tua vita finanziaria.</p>
+            </article>
+            <article class="product-item">
+              <span>04 / learning</span>
+              <h3>E-Learning</h3>
+              <p>Approfondisci mercati, rischio e asset allocation con percorsi pratici e progressivi.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="signal-strip reveal" id="vision">
+        <div class="signal-copy">
+          <p class="eyebrow">Metodo prima di operativita</p>
+          <h2>CapitalEyes nasce per rendere le decisioni pi&ugrave; leggibili, confrontabili e disciplinate.</h2>
+        </div>
+        <div class="signal-grid">
+          <div>
+            <span>01</span>
+            <strong>Analisi</strong>
+          </div>
+          <div>
+            <span>02</span>
+            <strong>Controllo</strong>
+          </div>
+          <div>
+            <span>03</span>
+            <strong>Formazione</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="experience-section reveal" id="experience">
+        <div class="experience-copy">
+          <p class="eyebrow">Esperienza prodotto</p>
+          <h2>Un ambiente unico per passare dall'idea alla verifica, fino al monitoraggio.</h2>
+          <p>
+            L'obiettivo &egrave; semplice: aiutarti a capire cosa stai facendo, misurare le alternative
+            e seguire il percorso senza perdere il quadro generale.
+          </p>
+        </div>
+
+        <div class="motion-stage" aria-hidden="true">
+          <div class="stage-frame">
+            <div class="stage-header"><span></span><span></span><span></span></div>
+            <div class="stage-graph"></div>
+            <div class="stage-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="stage-panel panel-a"></div>
+          <div class="stage-panel panel-b"></div>
+          <div class="stage-panel panel-c"></div>
+        </div>
+      </section>
+
+      <section class="access-section reveal" id="access">
+        <div>
+          <p class="eyebrow">CapitalEyes</p>
+          <h2>Entra nella platform e scegli il modulo da cui partire.</h2>
+        </div>
+        <a class="primary-action" href="/platform"><span></span>Apri platform</a>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
