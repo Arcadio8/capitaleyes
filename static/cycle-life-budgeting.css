@@ -184,10 +184,6 @@ h1 {
   line-height: 0.9;
 }
 
-.title-mobile {
-  display: none;
-}
-
 h2 {
   margin-top: 6px;
   font-size: 22px;
@@ -706,16 +702,8 @@ canvas {
   }
 
   h1 {
-    font-size: 38px;
-    line-height: 0.95;
-  }
-
-  .title-desktop {
-    display: none;
-  }
-
-  .title-mobile {
-    display: block;
+    font-size: 31px;
+    line-height: 1;
   }
 
   canvas {
