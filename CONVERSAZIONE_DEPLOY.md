@@ -312,3 +312,192 @@ Invoke-WebRequest -UseBasicParsing -Uri "https://www.capitaleyes.app/api/health"
 - Non sono state salvate password o token.
 - GitHub CLI (`gh`) non e stato installato: l'installazione era stata annullata.
 - Il push e stato fatto con Git e Git Credential Manager.
+
+## Aggiornamento 2026-07-20 - Personal Financial Life Plan
+
+### Richieste fatte
+
+E stato chiesto di rivedere l'applicativo `cycle-life-budgeting` e semplificarlo molto rispetto alla versione precedente.
+
+La versione precedente gestiva:
+
+- profilo finanziario;
+- budget per categorie;
+- patrimonio, debiti e liquidita;
+- obiettivi e milestone;
+- fondo emergenza;
+- score piano;
+- scenari economici multipli.
+
+La nuova richiesta e stata:
+
+- lavorare su base mensile;
+- dividere semplicemente entrate e uscite;
+- calcolare automaticamente il delta come risparmio mensile;
+- sommare il risparmio mensile a un patrimonio iniziale inserito come input;
+- applicare un tasso annuo ipotetico inserito come input;
+- mostrare come varia il patrimonio nei prossimi anni fino a 90 anni;
+- mantenere la stessa grafica generale dell'app.
+
+Successivamente e stato chiesto di cambiare il nome visibile dell'app da `Cycle Life Budgeting` / `Monthly Wealth Plan` a:
+
+```text
+Personal Financial Life Plan
+```
+
+Infine e stato segnalato che il titolo compariva duplicato nella pagina. La causa era la presenza di due versioni responsive dello stesso titolo (`title-desktop` e `title-mobile`). La correzione finale ha lasciato un solo `h1`, cosi il titolo non puo piu duplicarsi.
+
+### Modifiche locali
+
+File modificati per la nuova app:
+
+- `static/cycle-life-budgeting.html`
+- `static/cycle-life-budgeting.js`
+- `static/cycle-life-budgeting.css`
+- `static/index.html`
+- `static/platform.html`
+- `static/backtest.html`
+
+Il percorso tecnico e rimasto invariato:
+
+```text
+/cycle-life-budgeting
+```
+
+Questo e stato mantenuto per non rompere link, routing e deploy esistenti.
+
+La nuova app ora funziona cosi:
+
+1. L'utente inserisce valuta, eta attuale, patrimonio iniziale e tasso annuo ipotetico.
+2. L'utente inserisce una o piu entrate mensili.
+3. L'utente inserisce una o piu uscite mensili.
+4. Il sistema calcola automaticamente:
+   - entrate mensili totali;
+   - uscite mensili totali;
+   - risparmio mensile;
+   - saving rate;
+   - risparmio annuo;
+   - risparmio cumulato;
+   - capitale versato;
+   - rendimento cumulato;
+   - patrimonio stimato a 90 anni.
+5. Ogni mese il risparmio viene aggiunto al patrimonio e poi il patrimonio aggiornato viene capitalizzato al tasso mensile equivalente.
+6. L'output principale e un grafico del patrimonio fino a 90 anni.
+7. Sono presenti anche:
+   - grafico entrate/uscite/risparmio;
+   - tabella annuale dei checkpoint;
+   - esportazione CSV;
+   - salvataggio automatico nel browser tramite `localStorage`.
+
+La chiave `localStorage` usata dalla nuova versione e:
+
+```text
+capitaleyes-cycle-life-budgeting-v2
+```
+
+Il file CSV esportato ora si chiama:
+
+```text
+capitaleyes-personal-financial-life-plan.csv
+```
+
+### Commit GitHub
+
+Durante questo aggiornamento sono stati creati e pushati su `origin/main` questi commit:
+
+```text
+4293c58 Simplify cycle life budgeting projection
+82cfcaa Rename financial planning app
+cbdef49 Fix duplicated financial plan title
+```
+
+Durante il primo push era presente un commit remoto non ancora locale:
+
+```text
+935b95a Update platform CTA wording
+```
+
+E stato fatto:
+
+```powershell
+git fetch origin
+git rebase origin/main
+git push origin main
+```
+
+Il rebase e andato a buon fine senza conflitti.
+
+Stato finale prima di questo aggiornamento del file:
+
+```text
+main allineato a origin/main
+HEAD: cbdef49 Fix duplicated financial plan title
+```
+
+### Verifiche eseguite
+
+Verifiche locali:
+
+```powershell
+.venv\Scripts\python.exe -m py_compile .\main.py
+```
+
+Server locale usato per smoke test:
+
+```text
+http://127.0.0.1:18080/cycle-life-budgeting
+```
+
+Verifiche HTTP locali:
+
+```text
+http://127.0.0.1:18080/api/health
+http://127.0.0.1:18080/cycle-life-budgeting
+http://127.0.0.1:18080/cycle-life-budgeting.js
+http://127.0.0.1:18080/cycle-life-budgeting.css
+```
+
+Risposta health attesa/ottenuta:
+
+```json
+{"ok": true, "app": "CapitalEyes"}
+```
+
+Verifiche browser:
+
+- Chrome headless desktop;
+- Chrome headless mobile;
+- controllo DOM per confermare il nuovo nome;
+- controllo screenshot per evitare overflow e titolo duplicato.
+
+Verifiche live su dominio pubblico:
+
+```text
+https://www.capitaleyes.app/api/health
+https://www.capitaleyes.app/cycle-life-budgeting
+```
+
+Risultato finale:
+
+- pagina pubblica aggiornata;
+- nuovo nome presente: `Personal Financial Life Plan`;
+- vecchi nomi non presenti nella pagina pubblica:
+  - `Cycle Life Budgeting`
+  - `Monthly Wealth Plan`
+- markup duplicato rimosso:
+  - non sono piu presenti `title-desktop` e `title-mobile`;
+- health live ok:
+
+```json
+{"ok": true, "app": "CapitalEyes"}
+```
+
+### Stato operativo
+
+La versione online aggiornata e disponibile qui:
+
+```text
+https://www.capitaleyes.app/cycle-life-budgeting
+```
+
+Il deploy automatico DigitalOcean ha richiesto circa 1-2 minuti dopo i push su GitHub prima che il dominio pubblico iniziasse a servire la nuova build.
