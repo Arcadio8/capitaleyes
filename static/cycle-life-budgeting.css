@@ -24,6 +24,7 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 78% 6%, rgba(105, 213, 199, 0.14), transparent 31%),
     radial-gradient(circle at 12% 12%, rgba(242, 185, 103, 0.1), transparent 28%),
@@ -267,8 +268,11 @@ h2 {
 
 .metric-grid strong {
   margin-top: 12px;
-  font-size: clamp(24px, 2.3vw, 33px);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: clamp(20px, 1.45vw, 30px);
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .metric-grid small {
@@ -305,6 +309,10 @@ h2 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.simple-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .slider-grid {
@@ -503,6 +511,38 @@ canvas {
   gap: 10px;
 }
 
+.summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.summary-list div {
+  min-height: 58px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 248, 234, 0.04);
+}
+
+.summary-list span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.summary-list strong {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.projection-panel .table-scroll {
+  max-height: 460px;
+  overflow: auto;
+}
+
 .goal-card,
 .action-card,
 .bucket-item {
@@ -633,6 +673,10 @@ canvas {
   }
 
   .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .simple-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

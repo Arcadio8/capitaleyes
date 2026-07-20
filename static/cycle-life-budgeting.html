@@ -6,7 +6,7 @@
     <title>CapitalEyes | Cycle Life Budgeting</title>
     <meta
       name="description"
-      content="Modulo CapitalEyes per budget personale, obiettivi di vita, patrimonio, debiti e scenari di capitale."
+      content="Modulo CapitalEyes per proiettare il patrimonio personale da entrate, uscite, risparmio mensile e rendimento ipotetico."
     />
     <link rel="stylesheet" href="/cycle-life-budgeting.css" />
   </head>
@@ -28,8 +28,8 @@
         <div class="status-card">
           <span class="live-dot"></span>
           <div>
-            <strong id="sidebar-phase">Life phase</strong>
-            <small id="sidebar-status">Profilo finanziario aggiornato in tempo reale.</small>
+            <strong id="sidebar-phase">Proiezione</strong>
+            <small id="sidebar-status">Calcolo aggiornato in tempo reale.</small>
           </div>
         </div>
       </aside>
@@ -38,7 +38,7 @@
         <header class="cycle-header">
           <div>
             <p class="eyebrow">Cycle Life Budgeting</p>
-            <h1>Financial Life Studio</h1>
+            <h1>Monthly Wealth Plan</h1>
           </div>
           <div class="header-actions">
             <button id="save-plan" type="button">Salva</button>
@@ -50,34 +50,34 @@
 
         <section class="metric-grid" aria-label="Sintesi finanziaria">
           <article>
-            <span>Patrimonio netto</span>
-            <strong id="metric-net-worth">-</strong>
-            <small id="metric-assets">Asset -</small>
+            <span>Entrate mensili</span>
+            <strong id="metric-income">-</strong>
+            <small id="metric-income-count">Voci -</small>
           </article>
           <article>
-            <span>Cashflow mensile</span>
-            <strong id="metric-surplus">-</strong>
+            <span>Uscite mensili</span>
+            <strong id="metric-expenses">-</strong>
+            <small id="metric-expense-count">Voci -</small>
+          </article>
+          <article>
+            <span>Risparmio mensile</span>
+            <strong id="metric-savings">-</strong>
             <small id="metric-savings-rate">Saving rate -</small>
           </article>
           <article>
-            <span>Fondo emergenza</span>
-            <strong id="metric-emergency">-</strong>
-            <small id="metric-runway">Runway -</small>
+            <span>Patrimonio iniziale</span>
+            <strong id="metric-initial-wealth">-</strong>
+            <small id="metric-current-age">Eta -</small>
           </article>
           <article>
-            <span>Obiettivi coperti</span>
-            <strong id="metric-goals">-</strong>
-            <small id="metric-required">Richiesta mensile -</small>
+            <span>Patrimonio a 90 anni</span>
+            <strong id="metric-final-wealth">-</strong>
+            <small id="metric-horizon">Orizzonte -</small>
           </article>
           <article>
-            <span>Liberta finanziaria</span>
-            <strong id="metric-fire">-</strong>
-            <small id="metric-fire-gap">Gap -</small>
-          </article>
-          <article>
-            <span>Score piano</span>
-            <strong id="metric-score">-</strong>
-            <small id="metric-score-label">Qualita piano -</small>
+            <span>Delta stimato</span>
+            <strong id="metric-wealth-delta">-</strong>
+            <small id="metric-return-rate">Rendimento -</small>
           </article>
         </section>
 
@@ -85,11 +85,11 @@
           <article class="panel profile-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Profile</p>
+                <p class="eyebrow">Input</p>
                 <h2>Dati base</h2>
               </div>
             </div>
-            <div class="form-grid">
+            <div class="form-grid simple-form">
               <label>
                 <span>Valuta</span>
                 <select id="currency">
@@ -104,49 +104,40 @@
                 <input id="age" type="number" min="18" max="90" step="1" />
               </label>
               <label>
-                <span>Eta obiettivo liberta</span>
-                <input id="retirement-age" type="number" min="25" max="95" step="1" />
+                <span>Patrimonio iniziale</span>
+                <input id="initial-wealth" type="number" step="1000" />
               </label>
               <label>
-                <span>Reddito netto mensile</span>
-                <input id="income" type="number" min="0" step="100" />
-              </label>
-              <label>
-                <span>Mesi fondo emergenza</span>
-                <input id="emergency-months" type="number" min="1" max="24" step="1" />
-              </label>
-              <label>
-                <span>Familiari a carico</span>
-                <input id="dependents" type="number" min="0" max="12" step="1" />
+                <span>Tasso annuo ipotetico</span>
+                <input id="return-rate" type="number" min="-20" max="30" step="0.1" />
               </label>
             </div>
           </article>
 
-          <article class="panel scenario-panel">
+          <article class="panel summary-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Scenario</p>
-                <h2>Ipotesi economiche</h2>
+                <p class="eyebrow">Projection</p>
+                <h2>Sintesi piano</h2>
               </div>
             </div>
-            <div class="scenario-tabs" role="group" aria-label="Scenario">
-              <button type="button" data-scenario="defensive">Difensivo</button>
-              <button class="active" type="button" data-scenario="base">Base</button>
-              <button type="button" data-scenario="growth">Crescita</button>
-            </div>
-            <div class="slider-grid">
-              <label>
-                <span>Rendimento annuo atteso <strong id="return-label">-</strong></span>
-                <input id="return-rate" type="range" min="0" max="12" step="0.1" />
-              </label>
-              <label>
-                <span>Inflazione annua <strong id="inflation-label">-</strong></span>
-                <input id="inflation-rate" type="range" min="0" max="8" step="0.1" />
-              </label>
-              <label>
-                <span>Crescita reddito <strong id="income-growth-label">-</strong></span>
-                <input id="income-growth" type="range" min="-2" max="8" step="0.1" />
-              </label>
+            <div class="summary-list">
+              <div>
+                <span>Risparmio annuo</span>
+                <strong id="summary-annual-savings">-</strong>
+              </div>
+              <div>
+                <span>Risparmio cumulato</span>
+                <strong id="summary-total-savings">-</strong>
+              </div>
+              <div>
+                <span>Capitale versato</span>
+                <strong id="summary-total-contributed">-</strong>
+              </div>
+              <div>
+                <span>Rendimento cumulato</span>
+                <strong id="summary-total-return">-</strong>
+              </div>
             </div>
           </article>
         </section>
@@ -155,35 +146,45 @@
           <article class="panel budget-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Monthly budget</p>
-                <h2>Entrate, uscite e risparmio</h2>
+                <p class="eyebrow">Monthly income</p>
+                <h2>Entrate</h2>
               </div>
-              <button id="add-category" type="button">+ Categoria</button>
+              <button id="add-income" type="button">+ Entrata</button>
             </div>
             <div class="table-scroll">
               <table class="budget-table">
                 <thead>
                   <tr>
-                    <th>Categoria</th>
-                    <th>Tipo</th>
+                    <th>Voce</th>
                     <th>Mensile</th>
-                    <th>Priorita</th>
                     <th></th>
                   </tr>
                 </thead>
-                <tbody id="categories-body"></tbody>
+                <tbody id="income-body"></tbody>
               </table>
             </div>
           </article>
 
-          <article class="panel cycle-panel">
+          <article class="panel budget-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Life cycle map</p>
-                <h2>Priorita finanziarie</h2>
+                <p class="eyebrow">Monthly expenses</p>
+                <h2>Uscite</h2>
               </div>
+              <button id="add-expense" type="button">+ Uscita</button>
             </div>
-            <div class="cycle-lanes" id="cycle-lanes"></div>
+            <div class="table-scroll">
+              <table class="budget-table">
+                <thead>
+                  <tr>
+                    <th>Voce</th>
+                    <th>Mensile</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="expense-body"></tbody>
+              </table>
+            </div>
           </article>
         </section>
 
@@ -191,81 +192,55 @@
           <article class="panel chart-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Projection</p>
-                <h2>Timeline patrimonio</h2>
+                <p class="eyebrow">Wealth timeline</p>
+                <h2>Patrimonio fino a 90 anni</h2>
               </div>
             </div>
-            <canvas id="wealth-chart" aria-label="Timeline patrimonio"></canvas>
+            <canvas id="wealth-chart" aria-label="Patrimonio fino a 90 anni"></canvas>
           </article>
 
           <article class="panel chart-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Cashflow</p>
-                <h2>Distribuzione mensile</h2>
+                <p class="eyebrow">Monthly delta</p>
+                <h2>Entrate, uscite e risparmio</h2>
               </div>
             </div>
-            <canvas id="cashflow-chart" aria-label="Distribuzione mensile"></canvas>
+            <canvas id="cashflow-chart" aria-label="Entrate uscite e risparmio"></canvas>
           </article>
         </section>
 
-        <section class="stage-grid">
-          <article class="panel goals-panel">
+        <section class="stage-grid final-grid">
+          <article class="panel projection-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Goals</p>
-                <h2>Obiettivi e milestone</h2>
+                <p class="eyebrow">Checkpoints</p>
+                <h2>Valori annuali</h2>
               </div>
-              <button id="add-goal" type="button">+ Obiettivo</button>
-            </div>
-            <div class="goal-list" id="goals-list"></div>
-          </article>
-
-          <article class="panel action-panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Decision queue</p>
-                <h2>Azioni suggerite</h2>
-              </div>
-            </div>
-            <div class="action-list" id="action-list"></div>
-          </article>
-        </section>
-
-        <section class="stage-grid">
-          <article class="panel accounts-panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Balance sheet</p>
-                <h2>Patrimonio e debiti</h2>
-              </div>
-              <button id="add-account" type="button">+ Voce</button>
             </div>
             <div class="table-scroll">
-              <table class="accounts-table">
+              <table class="projection-table">
                 <thead>
                   <tr>
-                    <th>Voce</th>
-                    <th>Tipo</th>
-                    <th>Valore</th>
-                    <th>Liquidita</th>
-                    <th></th>
+                    <th>Eta</th>
+                    <th>Patrimonio</th>
+                    <th>Risparmio cumulato</th>
+                    <th>Rendimento cumulato</th>
                   </tr>
                 </thead>
-                <tbody id="accounts-body"></tbody>
+                <tbody id="projection-body"></tbody>
               </table>
             </div>
           </article>
 
-          <article class="panel allocation-panel">
+          <article class="panel summary-panel">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Capital allocation</p>
-                <h2>Bucket del capitale</h2>
+                <p class="eyebrow">Status</p>
+                <h2>Lettura veloce</h2>
               </div>
             </div>
-            <canvas id="bucket-chart" aria-label="Bucket del capitale"></canvas>
-            <div class="bucket-list" id="bucket-list"></div>
+            <div class="action-list" id="status-list"></div>
           </article>
         </section>
       </main>
