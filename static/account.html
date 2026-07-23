@@ -17,11 +17,11 @@
         <p class="account-eyebrow">Area account</p>
         <h1>Accesso personale</h1>
         <p>
-          Crea un account con email verificata per salvare i dati personali della suite:
-          piani finanziari, configurazioni di backtest e futuri prodotti CapitalEyes.
+          Crea un account personale per salvare i dati della suite: piani finanziari,
+          configurazioni di backtest e futuri prodotti CapitalEyes.
         </p>
         <div class="account-checks">
-          <span>Email verificata</span>
+          <span>Accesso immediato</span>
           <span>Consensi registrati</span>
           <span>Dati per prodotto</span>
         </div>
@@ -31,7 +31,6 @@
         <div class="account-tabs" role="tablist" aria-label="Account">
           <button class="active" type="button" data-account-tab="login">Accedi</button>
           <button type="button" data-account-tab="register">Crea account</button>
-          <button type="button" data-account-tab="resend">Conferma email</button>
         </div>
 
         <form class="account-form active" id="login-form">
@@ -86,18 +85,6 @@
           </div>
           <a class="account-policy-link" href="/privacy" target="_blank" rel="noreferrer">Leggi informativa privacy e trattamento dati</a>
           <button class="account-primary" type="submit">Crea account</button>
-        </form>
-
-        <form class="account-form" id="resend-form">
-          <div class="account-form-head">
-            <span>Verifica email</span>
-            <h2>Reinvia conferma</h2>
-          </div>
-          <label>
-            <span>Email</span>
-            <input name="email" type="email" autocomplete="email" required />
-          </label>
-          <button class="account-primary" type="submit">Invia nuova email</button>
         </form>
 
         <div class="account-message" id="account-message" aria-live="polite"></div>

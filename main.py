@@ -45,6 +45,7 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USERNAME).strip()
 APP_PUBLIC_URL = os.environ.get("CAPITALEYES_PUBLIC_URL", "").strip().rstrip("/")
 SHOW_DEV_VERIFICATION_LINK = os.environ.get("CAPITALEYES_SHOW_VERIFICATION_LINK", "").strip().lower() in {"1", "true", "yes"}
+EMAIL_CONFIRMATION_REQUIRED = os.environ.get("CAPITALEYES_REQUIRE_EMAIL_CONFIRMATION", "").strip().lower() in {"1", "true", "yes"}
 PAGE_ROUTES = {
     "/platform": "/platform.html",
     "/account": "/account.html",
@@ -153,7 +154,11 @@ def initialize_database() -> None:
             if column not in user_columns:
                 connection.execute(statement)
         connection.execute("UPDATE users SET status = 'active' WHERE status IS NULL OR status = ''")
-        connection.execute("UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL")
+        if EMAIL_CONFIRMATION_REQUIRED:
+            connection.execute("UPDATE users SET email_verified_at = created_at WHERE status = 'active' AND email_verified_at IS NULL")
+        else:
+            connection.execute("UPDATE users SET status = 'active' WHERE status != 'active'")
+            connection.execute("UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL")
         connection.execute("UPDATE users SET privacy_consent_at = created_at WHERE privacy_consent_at IS NULL")
         connection.execute("UPDATE users SET terms_consent_at = created_at WHERE terms_consent_at IS NULL")
         connection.execute("UPDATE users SET consent_version = ? WHERE consent_version IS NULL", (CONSENT_VERSION,))
@@ -1552,6 +1557,8 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
             payload = self.read_json_body()
             email, password, marketing_consent = validate_registration_payload(payload)
             created_at = utc_now_iso()
+            status = "pending" if EMAIL_CONFIRMATION_REQUIRED else "active"
+            email_verified_at = None if EMAIL_CONFIRMATION_REQUIRED else created_at
             with database_connection() as connection:
                 try:
                     cursor = connection.execute(
@@ -1567,12 +1574,14 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
                             marketing_consent_at,
                             consent_version
                         )
-                        VALUES (?, ?, ?, 'pending', NULL, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             email,
                             password_hash(password),
                             created_at,
+                            status,
+                            email_verified_at,
                             created_at,
                             created_at,
                             created_at if marketing_consent else None,
@@ -1584,6 +1593,21 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
                 user_id = int(cursor.lastrowid)
                 row = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
                 user = public_user(row)
+            if not EMAIL_CONFIRMATION_REQUIRED:
+                token, expires_at = create_session(user.id)
+                self.send_json(
+                    {
+                        "ok": True,
+                        "user": serialize_user(user),
+                        "status": "active",
+                        "emailConfirmationRequired": False,
+                        "expiresAt": expires_at,
+                        "message": "Account creato. Accesso effettuato.",
+                    },
+                    HTTPStatus.CREATED,
+                    set_cookie=token,
+                )
+                return
             verification_token, expires_at = create_email_verification_token(user.id)
             verification_url = self.verification_url(verification_token)
             email_sent = send_verification_email(email, verification_url)
@@ -1593,6 +1617,7 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "user": serialize_user(user),
                     "status": "pending_verification",
+                    "emailConfirmationRequired": True,
                     "emailSent": email_sent,
                     "emailConfigured": smtp_configured(),
                     "expiresAt": expires_at,
@@ -1618,7 +1643,16 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
                 raise ApiError("Email o password non validi.", HTTPStatus.UNAUTHORIZED)
             user = public_user(row)
             if user.status != "active" or user.email_verified_at is None:
-                raise ApiError("Account non ancora attivo. Conferma l'email prima di accedere.", HTTPStatus.FORBIDDEN)
+                if EMAIL_CONFIRMATION_REQUIRED:
+                    raise ApiError("Account non ancora attivo. Conferma l'email prima di accedere.", HTTPStatus.FORBIDDEN)
+                verified_at = utc_now_iso()
+                with database_connection() as connection:
+                    connection.execute(
+                        "UPDATE users SET status = 'active', email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?",
+                        (verified_at, user.id),
+                    )
+                    row = connection.execute("SELECT * FROM users WHERE id = ?", (user.id,)).fetchone()
+                user = public_user(row)
             with database_connection() as connection:
                 connection.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (utc_now_iso(), user.id))
             token, expires_at = create_session(user.id)
@@ -1690,6 +1724,15 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
     def handle_resend_verification(self) -> None:
         try:
             payload = self.read_json_body()
+            if not EMAIL_CONFIRMATION_REQUIRED:
+                self.send_json(
+                    {
+                        "ok": True,
+                        "emailConfirmationRequired": False,
+                        "message": "La conferma email e disattivata. Puoi accedere con email e password.",
+                    }
+                )
+                return
             email = normalize_email(str(payload.get("email", "")))
             with database_connection() as connection:
                 row = connection.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()

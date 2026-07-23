@@ -3,7 +3,6 @@ const nodes = {
   forms: {
     login: document.querySelector("#login-form"),
     register: document.querySelector("#register-form"),
-    resend: document.querySelector("#resend-form"),
   },
   message: document.querySelector("#account-message"),
 };
@@ -52,11 +51,6 @@ function passwordIssue(value) {
   return "";
 }
 
-function appendVerificationLink(payload) {
-  if (!payload.verificationUrl) return "";
-  return ` Link locale: ${payload.verificationUrl}`;
-}
-
 nodes.tabs.forEach((tab) => {
   tab.addEventListener("click", () => setActiveTab(tab.dataset.accountTab));
 });
@@ -92,7 +86,7 @@ nodes.forms.register.addEventListener("submit", async (event) => {
     return;
   }
   try {
-    const payload = await requestJson("/api/auth/register", {
+    await requestJson("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({
         email: data.email,
@@ -103,29 +97,10 @@ nodes.forms.register.addEventListener("submit", async (event) => {
         marketingConsent: data.marketingConsent === "on",
       }),
     });
-    const emailMessage = payload.emailSent
-      ? "Account creato. Controlla la posta e conferma l'email."
-      : "Account creato ma invio email non configurato. Configura SMTP per attivare il flusso in produzione.";
-    setActiveTab("resend");
-    nodes.forms.resend.elements.email.value = data.email;
-    setMessage(`${emailMessage}${appendVerificationLink(payload)}`, !payload.emailSent && !payload.verificationUrl);
-  } catch (error) {
-    setMessage(error.message, true);
-  }
-});
-
-nodes.forms.resend.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const data = formObject(event.currentTarget);
-  try {
-    const payload = await requestJson("/api/auth/resend-verification", {
-      method: "POST",
-      body: JSON.stringify({ email: data.email }),
-    });
-    const emailMessage = payload.emailSent
-      ? "Se l'account esiste, riceverai una nuova email di conferma."
-      : "Invio email non configurato. Configura SMTP per inviare la conferma in produzione.";
-    setMessage(`${emailMessage}${appendVerificationLink(payload)}`, !payload.emailSent && !payload.verificationUrl);
+    setMessage("Account creato. Apertura platform...");
+    window.setTimeout(() => {
+      window.location.href = "/platform";
+    }, 450);
   } catch (error) {
     setMessage(error.message, true);
   }

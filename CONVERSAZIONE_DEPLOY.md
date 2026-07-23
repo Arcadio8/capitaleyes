@@ -754,3 +754,43 @@ SMTP_FROM
 ```
 
 Senza SMTP configurato, la produzione puo creare account pending ma non puo inviare agli utenti il link di attivazione. Per dati personali persistenti resta valido anche il passaggio a database gestito, perche SQLite su App Platform non e sufficiente come storage definitivo.
+
+## 2026-07-23 - Conferma email disattivata temporaneamente
+
+### Nuova richiesta
+
+L'utente ha chiesto di evitare per il momento l'email di conferma, cosi da non bloccare la registrazione in produzione finche non viene configurato un servizio SMTP.
+
+### Modifiche locali
+
+- la registrazione crea account subito `active`;
+- `email_verified_at` viene valorizzato alla creazione account per indicare che non c'e blocco di verifica attivo;
+- viene creata subito la sessione utente e impostato il cookie di login;
+- il login non blocca piu gli account pending quando `CAPITALEYES_REQUIRE_EMAIL_CONFIRMATION` non e attivo;
+- eventuali account pending esistenti vengono sbloccati automaticamente all'avvio o al login;
+- la pagina `/account` mostra solo `Accedi` e `Crea account`;
+- rimossi dalla UI i riferimenti a `Conferma email`;
+- `DEPLOY_DIGITALOCEAN.md` chiarisce che SMTP ora e opzionale/futuro.
+
+### Nota tecnica
+
+Il codice di verifica email resta disponibile dietro flag:
+
+```text
+CAPITALEYES_REQUIRE_EMAIL_CONFIRMATION=true
+```
+
+Di default questo flag non e impostato, quindi oggi il sito non richiede conferma email.
+
+### Verifiche locali eseguite
+
+- compilazione `main.py`;
+- consenso privacy mancante rifiutato con `400`;
+- password e ripeti password diverse rifiutate con `400`;
+- registrazione valida restituisce `201`, crea account `active` e imposta cookie sessione;
+- `/api/auth/me` funziona subito dopo registrazione;
+- salvataggio e rilettura dati su `personal-financial-life-plan`;
+- endpoint di reinvio verifica risponde che la conferma email e disattivata;
+- account `pending` esistente viene sbloccato al login;
+- `/account` non mostra piu la scheda `Conferma email`;
+- screenshot desktop verificato per la pagina registrazione.

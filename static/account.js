@@ -80,7 +80,7 @@
                   <input name="password" type="password" autocomplete="current-password" minlength="10" required />
                 </label>
                 <button class="ce-account-primary" type="submit" data-account-submit>Accedi</button>
-                <a class="ce-account-link" href="/account">Crea account o conferma email</a>
+                <a class="ce-account-link" href="/account">Crea account personale</a>
               </form>
             `
         }

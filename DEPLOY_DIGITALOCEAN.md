@@ -31,7 +31,9 @@ La risposta attesa e:
 
 ## Variabili produzione account
 
-Per usare registrazione con conferma email in produzione, impostare su DigitalOcean App Platform queste variabili ambiente:
+La registrazione attuale e immediata: l'utente crea l'account, accetta i consensi e viene loggato senza conferma email.
+
+La conferma email e lasciata disattivata per il momento. Se in futuro viene riattivata con `CAPITALEYES_REQUIRE_EMAIL_CONFIRMATION=true`, impostare su DigitalOcean App Platform queste variabili ambiente:
 
 ```text
 CAPITALEYES_PUBLIC_URL=https://www.capitaleyes.app
@@ -42,7 +44,7 @@ SMTP_PASSWORD=...
 SMTP_FROM=...
 ```
 
-`SMTP_PASSWORD` va salvata come secret. Senza configurazione SMTP, il backend crea account in stato pending ma non puo inviare il link di attivazione agli utenti.
+`SMTP_PASSWORD` va salvata come secret. Senza questa riattivazione esplicita, SMTP non e necessario per creare account.
 
 ## Dominio GoDaddy
 
