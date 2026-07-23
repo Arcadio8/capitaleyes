@@ -8,9 +8,12 @@ import os
 import re
 import secrets
 import sqlite3
+import smtplib
+import ssl
 import time
 import urllib.parse
 import urllib.request
+from email.message import EmailMessage
 from http.cookies import SimpleCookie
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -29,12 +32,23 @@ DEFAULT_DB_PATH = BASE_DIR / "capitaleyes.db"
 DB_PATH = Path(os.environ.get("CAPITALEYES_DB_PATH", DEFAULT_DB_PATH)).resolve()
 SESSION_COOKIE = "capitaleyes_session"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
+EMAIL_VERIFICATION_TTL_SECONDS = 60 * 60 * 24
 PASSWORD_HASH_ITERATIONS = 260_000
 MAX_JSON_BODY_BYTES = 256 * 1024
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PRODUCT_KEYS = {"personal-financial-life-plan", "backtest", "portfolio-tracker", "e-learning"}
+CONSENT_VERSION = "2026-07-23"
+SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USERNAME).strip()
+APP_PUBLIC_URL = os.environ.get("CAPITALEYES_PUBLIC_URL", "").strip().rstrip("/")
+SHOW_DEV_VERIFICATION_LINK = os.environ.get("CAPITALEYES_SHOW_VERIFICATION_LINK", "").strip().lower() in {"1", "true", "yes"}
 PAGE_ROUTES = {
     "/platform": "/platform.html",
+    "/account": "/account.html",
+    "/privacy": "/privacy.html",
     "/backtest": "/backtest.html",
     "/portfolio-tracker": "/portfolio-tracker.html",
     "/cycle-life-budgeting": "/cycle-life-budgeting.html",
@@ -59,6 +73,8 @@ class AuthUser:
     id: int
     email: str
     created_at: str
+    status: str
+    email_verified_at: str | None
 
 
 @dataclass(frozen=True)
@@ -120,6 +136,27 @@ def initialize_database() -> None:
             )
             """
         )
+        user_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(users)").fetchall()
+        }
+        migrations = {
+            "status": "ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+            "email_verified_at": "ALTER TABLE users ADD COLUMN email_verified_at TEXT",
+            "privacy_consent_at": "ALTER TABLE users ADD COLUMN privacy_consent_at TEXT",
+            "terms_consent_at": "ALTER TABLE users ADD COLUMN terms_consent_at TEXT",
+            "marketing_consent_at": "ALTER TABLE users ADD COLUMN marketing_consent_at TEXT",
+            "consent_version": "ALTER TABLE users ADD COLUMN consent_version TEXT",
+            "last_login_at": "ALTER TABLE users ADD COLUMN last_login_at TEXT",
+        }
+        for column, statement in migrations.items():
+            if column not in user_columns:
+                connection.execute(statement)
+        connection.execute("UPDATE users SET status = 'active' WHERE status IS NULL OR status = ''")
+        connection.execute("UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL")
+        connection.execute("UPDATE users SET privacy_consent_at = created_at WHERE privacy_consent_at IS NULL")
+        connection.execute("UPDATE users SET terms_consent_at = created_at WHERE terms_consent_at IS NULL")
+        connection.execute("UPDATE users SET consent_version = ? WHERE consent_version IS NULL", (CONSENT_VERSION,))
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS sessions (
@@ -127,6 +164,18 @@ def initialize_database() -> None:
                 user_id INTEGER NOT NULL,
                 created_at INTEGER NOT NULL,
                 expires_at INTEGER NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS email_verification_tokens (
+                token_hash TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                used_at TEXT,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
             """
@@ -144,7 +193,9 @@ def initialize_database() -> None:
             """
         )
         connection.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions (expires_at)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_email_tokens_expires_at ON email_verification_tokens (expires_at)")
         connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (now_timestamp(),))
+        connection.execute("DELETE FROM email_verification_tokens WHERE expires_at <= ? AND used_at IS NULL", (now_timestamp(),))
 
 
 def normalize_email(value: str) -> str:
@@ -158,11 +209,32 @@ def normalize_email(value: str) -> str:
 
 def validate_password(value: str) -> str:
     password = value or ""
-    if len(password) < 8:
-        raise ApiError("La password deve contenere almeno 8 caratteri.")
+    if len(password) < 10:
+        raise ApiError("La password deve contenere almeno 10 caratteri.")
     if len(password) > 256:
         raise ApiError("Password troppo lunga.")
+    checks = [
+        any(ch.islower() for ch in password),
+        any(ch.isupper() for ch in password),
+        any(ch.isdigit() for ch in password),
+        any(not ch.isalnum() for ch in password),
+    ]
+    if sum(checks) < 3:
+        raise ApiError("Usa una password con almeno 3 tra minuscole, maiuscole, numeri e simboli.")
     return password
+
+
+def validate_registration_payload(payload: dict[str, Any]) -> tuple[str, str, bool]:
+    email = normalize_email(str(payload.get("email", "")))
+    password = validate_password(str(payload.get("password", "")))
+    password_confirm = str(payload.get("passwordConfirm", ""))
+    if not hmac.compare_digest(password, password_confirm):
+        raise ApiError("Le due password non coincidono.")
+    if payload.get("privacyConsent") is not True:
+        raise ApiError("Il consenso al trattamento dati e obbligatorio.")
+    if payload.get("termsConsent") is not True:
+        raise ApiError("Devi accettare le condizioni del servizio.")
+    return email, password, payload.get("marketingConsent") is True
 
 
 def password_hash(password: str) -> str:
@@ -192,7 +264,13 @@ def hash_session_token(token: str) -> str:
 
 
 def public_user(row: sqlite3.Row) -> AuthUser:
-    return AuthUser(id=int(row["id"]), email=str(row["email"]), created_at=str(row["created_at"]))
+    return AuthUser(
+        id=int(row["id"]),
+        email=str(row["email"]),
+        created_at=str(row["created_at"]),
+        status=str(row["status"]),
+        email_verified_at=row["email_verified_at"],
+    )
 
 
 def create_session(user_id: int) -> tuple[str, int]:
@@ -207,13 +285,72 @@ def create_session(user_id: int) -> tuple[str, int]:
     return token, expires_at
 
 
+def create_email_verification_token(user_id: int) -> tuple[str, int]:
+    token = secrets.token_urlsafe(32)
+    issued_at = now_timestamp()
+    expires_at = issued_at + EMAIL_VERIFICATION_TTL_SECONDS
+    with database_connection() as connection:
+        connection.execute(
+            "DELETE FROM email_verification_tokens WHERE user_id = ? AND used_at IS NULL",
+            (user_id,),
+        )
+        connection.execute(
+            """
+            INSERT INTO email_verification_tokens (token_hash, user_id, created_at, expires_at, used_at)
+            VALUES (?, ?, ?, ?, NULL)
+            """,
+            (hash_session_token(token), user_id, issued_at, expires_at),
+        )
+    return token, expires_at
+
+
+def smtp_configured() -> bool:
+    return bool(SMTP_HOST and SMTP_FROM)
+
+
+def send_email(to_email: str, subject: str, text_body: str) -> bool:
+    if not smtp_configured():
+        return False
+    message = EmailMessage()
+    message["From"] = SMTP_FROM
+    message["To"] = to_email
+    message["Subject"] = subject
+    message.set_content(text_body)
+    try:
+        if SMTP_PORT == 465:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=15) as smtp:
+                if SMTP_USERNAME and SMTP_PASSWORD:
+                    smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+                smtp.send_message(message)
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as smtp:
+                smtp.starttls(context=ssl.create_default_context())
+                if SMTP_USERNAME and SMTP_PASSWORD:
+                    smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+                smtp.send_message(message)
+    except (OSError, smtplib.SMTPException) as exc:
+        print(f"Email send failed: {exc}")
+        return False
+    return True
+
+
+def send_verification_email(email: str, verification_url: str) -> bool:
+    body = (
+        "Conferma il tuo account CapitalEyes aprendo questo link:\n\n"
+        f"{verification_url}\n\n"
+        "Il link scade dopo 24 ore. Se non hai richiesto tu questo account, ignora questa email."
+    )
+    return send_email(email, "Conferma il tuo account CapitalEyes", body)
+
+
 def find_user_by_session(token: str | None) -> AuthUser | None:
     if not token:
         return None
     with database_connection() as connection:
         row = connection.execute(
             """
-            SELECT users.id, users.email, users.created_at, sessions.expires_at
+            SELECT users.id, users.email, users.created_at, users.status, users.email_verified_at, sessions.expires_at
             FROM sessions
             JOIN users ON users.id = sessions.user_id
             WHERE sessions.token_hash = ?
@@ -231,7 +368,14 @@ def find_user_by_session(token: str | None) -> AuthUser | None:
 def serialize_user(user: AuthUser | None) -> dict[str, Any] | None:
     if not user:
         return None
-    return {"id": user.id, "email": user.email, "createdAt": user.created_at}
+    return {
+        "id": user.id,
+        "email": user.email,
+        "createdAt": user.created_at,
+        "status": user.status,
+        "emailVerified": user.email_verified_at is not None,
+        "emailVerifiedAt": user.email_verified_at,
+    }
 
 
 def clean_product_key(value: str) -> str:
@@ -1190,6 +1334,9 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/auth/me":
             self.handle_auth_me()
             return
+        if parsed.path == "/verify-email":
+            self.handle_verify_email(parsed.query)
+            return
         if parsed.path == "/api/user-data":
             self.handle_user_data_get(parsed.query)
             return
@@ -1223,6 +1370,9 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/auth/logout":
             self.handle_logout()
+            return
+        if parsed.path == "/api/auth/resend-verification":
+            self.handle_resend_verification()
             return
         self.send_json({"error": "Endpoint non trovato."}, HTTPStatus.NOT_FOUND)
 
@@ -1303,23 +1453,154 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
             cookie += "; Secure"
         self.send_header("Set-Cookie", cookie)
 
+    def public_base_url(self) -> str:
+        if APP_PUBLIC_URL:
+            return APP_PUBLIC_URL
+        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or f"{DEFAULT_HOST}:{DEFAULT_PORT}"
+        proto = self.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
+        scheme = proto if proto in {"http", "https"} else "https" if host.endswith("capitaleyes.app") else "http"
+        return f"{scheme}://{host}".rstrip("/")
+
+    def verification_url(self, token: str) -> str:
+        return f"{self.public_base_url()}/verify-email?token={urllib.parse.quote(token)}"
+
+    def request_is_local(self) -> bool:
+        host = (self.headers.get("Host") or "").split(":")[0].lower()
+        return host in {"127.0.0.1", "localhost", ""}
+
+    def send_html(self, html: str, status: HTTPStatus = HTTPStatus.OK, set_cookie: str | None = None) -> None:
+        body = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        if set_cookie:
+            self.set_session_cookie(set_cookie)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_redirect(self, location: str, set_cookie: str | None = None) -> None:
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        if set_cookie:
+            self.set_session_cookie(set_cookie)
+        self.end_headers()
+
+    def verification_response(self, title: str, body: str, success: bool = True, set_cookie: str | None = None) -> None:
+        color = "#69d5c7" if success else "#d66a5e"
+        self.send_html(
+            f"""<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CapitalEyes | Verifica email</title>
+    <style>
+      body {{
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #07090b;
+        color: #fff8ea;
+        font-family: Inter, system-ui, sans-serif;
+      }}
+      main {{
+        width: min(520px, calc(100vw - 32px));
+        padding: 28px;
+        border: 1px solid rgba(255, 248, 234, 0.16);
+        border-radius: 8px;
+        background: rgba(15, 18, 20, 0.96);
+      }}
+      span {{
+        color: {color};
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }}
+      h1 {{ margin: 10px 0 12px; font-size: 34px; line-height: 1; }}
+      p {{ color: rgba(255, 248, 234, 0.68); line-height: 1.5; }}
+      a {{
+        min-height: 42px;
+        display: inline-flex;
+        align-items: center;
+        margin-top: 14px;
+        padding: 0 14px;
+        border-radius: 8px;
+        color: #080a0b;
+        background: #f2b967;
+        font-weight: 900;
+        text-decoration: none;
+      }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <span>CapitalEyes account</span>
+      <h1>{title}</h1>
+      <p>{body}</p>
+      <a href="/platform">Apri platform</a>
+    </main>
+  </body>
+</html>""",
+            set_cookie=set_cookie,
+        )
+
     def handle_register(self) -> None:
         try:
             payload = self.read_json_body()
-            email = normalize_email(str(payload.get("email", "")))
-            password = validate_password(str(payload.get("password", "")))
+            email, password, marketing_consent = validate_registration_payload(payload)
             created_at = utc_now_iso()
             with database_connection() as connection:
                 try:
                     cursor = connection.execute(
-                        "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
-                        (email, password_hash(password), created_at),
+                        """
+                        INSERT INTO users (
+                            email,
+                            password_hash,
+                            created_at,
+                            status,
+                            email_verified_at,
+                            privacy_consent_at,
+                            terms_consent_at,
+                            marketing_consent_at,
+                            consent_version
+                        )
+                        VALUES (?, ?, ?, 'pending', NULL, ?, ?, ?, ?)
+                        """,
+                        (
+                            email,
+                            password_hash(password),
+                            created_at,
+                            created_at,
+                            created_at,
+                            created_at if marketing_consent else None,
+                            CONSENT_VERSION,
+                        ),
                     )
                 except sqlite3.IntegrityError as exc:
                     raise ApiError("Esiste gia un account con questa email.", HTTPStatus.CONFLICT) from exc
-                user = AuthUser(id=int(cursor.lastrowid), email=email, created_at=created_at)
-            token, expires_at = create_session(user.id)
-            self.send_json({"ok": True, "user": serialize_user(user), "expiresAt": expires_at}, set_cookie=token)
+                user_id = int(cursor.lastrowid)
+                row = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+                user = public_user(row)
+            verification_token, expires_at = create_email_verification_token(user.id)
+            verification_url = self.verification_url(verification_token)
+            email_sent = send_verification_email(email, verification_url)
+            dev_link_allowed = self.request_is_local() or SHOW_DEV_VERIFICATION_LINK
+            self.send_json(
+                {
+                    "ok": True,
+                    "user": serialize_user(user),
+                    "status": "pending_verification",
+                    "emailSent": email_sent,
+                    "emailConfigured": smtp_configured(),
+                    "expiresAt": expires_at,
+                    "verificationUrl": verification_url if dev_link_allowed else None,
+                    "message": "Account creato. Conferma l'email per attivarlo.",
+                },
+                HTTPStatus.ACCEPTED,
+            )
         except ApiError as exc:
             self.send_json({"error": exc.message}, exc.status)
         except Exception as exc:  # noqa: BLE001
@@ -1336,6 +1617,10 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
             if not row or not verify_password(password, str(row["password_hash"])):
                 raise ApiError("Email o password non validi.", HTTPStatus.UNAUTHORIZED)
             user = public_user(row)
+            if user.status != "active" or user.email_verified_at is None:
+                raise ApiError("Account non ancora attivo. Conferma l'email prima di accedere.", HTTPStatus.FORBIDDEN)
+            with database_connection() as connection:
+                connection.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (utc_now_iso(), user.id))
             token, expires_at = create_session(user.id)
             self.send_json({"ok": True, "user": serialize_user(user), "expiresAt": expires_at}, set_cookie=token)
         except ApiError as exc:
@@ -1357,6 +1642,83 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
 
     def handle_auth_me(self) -> None:
         self.send_json({"user": serialize_user(self.current_user())})
+
+    def handle_verify_email(self, raw_query: str) -> None:
+        try:
+            query = urllib.parse.parse_qs(raw_query)
+            token = query.get("token", [""])[0]
+            if not token:
+                raise ApiError("Token di verifica mancante.", HTTPStatus.BAD_REQUEST)
+            token_hash = hash_session_token(token)
+            verified_at = utc_now_iso()
+            with database_connection() as connection:
+                row = connection.execute(
+                    """
+                    SELECT email_verification_tokens.user_id, email_verification_tokens.expires_at, users.email
+                    FROM email_verification_tokens
+                    JOIN users ON users.id = email_verification_tokens.user_id
+                    WHERE email_verification_tokens.token_hash = ?
+                      AND email_verification_tokens.used_at IS NULL
+                    """,
+                    (token_hash,),
+                ).fetchone()
+                if not row:
+                    raise ApiError("Link di verifica non valido o gia usato.", HTTPStatus.BAD_REQUEST)
+                if int(row["expires_at"]) <= now_timestamp():
+                    raise ApiError("Link di verifica scaduto. Richiedi un nuovo invio.", HTTPStatus.BAD_REQUEST)
+                user_id = int(row["user_id"])
+                connection.execute(
+                    "UPDATE users SET status = 'active', email_verified_at = ? WHERE id = ?",
+                    (verified_at, user_id),
+                )
+                connection.execute(
+                    "UPDATE email_verification_tokens SET used_at = ? WHERE token_hash = ?",
+                    (verified_at, token_hash),
+                )
+            session_token, _ = create_session(user_id)
+            self.verification_response(
+                "Email confermata",
+                "Il tuo account e attivo. Puoi usare la suite e salvare i dati personali nei prodotti.",
+                set_cookie=session_token,
+            )
+        except ApiError as exc:
+            self.verification_response("Verifica non riuscita", exc.message, success=False)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected email verification error: {exc}")
+            self.verification_response("Errore verifica", "Errore interno durante la verifica email.", success=False)
+
+    def handle_resend_verification(self) -> None:
+        try:
+            payload = self.read_json_body()
+            email = normalize_email(str(payload.get("email", "")))
+            with database_connection() as connection:
+                row = connection.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            if not row:
+                self.send_json({"ok": True, "message": "Se l'account esiste, riceverai una nuova email."})
+                return
+            user = public_user(row)
+            if user.status == "active" and user.email_verified_at is not None:
+                self.send_json({"ok": True, "message": "Account gia attivo."})
+                return
+            verification_token, expires_at = create_email_verification_token(user.id)
+            verification_url = self.verification_url(verification_token)
+            email_sent = send_verification_email(user.email, verification_url)
+            dev_link_allowed = self.request_is_local() or SHOW_DEV_VERIFICATION_LINK
+            self.send_json(
+                {
+                    "ok": True,
+                    "emailSent": email_sent,
+                    "emailConfigured": smtp_configured(),
+                    "expiresAt": expires_at,
+                    "verificationUrl": verification_url if dev_link_allowed else None,
+                    "message": "Se l'account esiste, riceverai una nuova email.",
+                }
+            )
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected resend verification error: {exc}")
+            self.send_json({"error": "Errore interno durante il reinvio verifica."}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def handle_user_data_get(self, raw_query: str) -> None:
         try:

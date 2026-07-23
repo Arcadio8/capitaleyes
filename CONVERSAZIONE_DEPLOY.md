@@ -655,3 +655,102 @@ Con l'attuale hosting App Platform, gli account online possono funzionare durant
 2. collegarlo all'app;
 3. migrare lo storage da SQLite locale al database gestito;
 4. configurare backup e policy dati.
+
+## 2026-07-23 - Registrazione account professionale
+
+### Chiarimento utente
+
+L'utente ha segnalato che il primo MVP account non era abbastanza professionale per dati personali. Richiesto un flusso piu serio con:
+
+- pagina di registrazione dedicata;
+- email e password;
+- doppia validazione password;
+- consensi espliciti per trattamento dati;
+- conferma email prima dell'attivazione account.
+
+### Modifiche locali
+
+Backend `main.py`:
+
+- registrazione non crea piu una sessione immediata;
+- nuovo stato utente `pending` fino alla conferma email;
+- login bloccato finche `status` non e `active` e `email_verified_at` non e valorizzato;
+- nuova tabella `email_verification_tokens` con scadenza 24 ore;
+- endpoint `GET /verify-email?token=...` per attivare l'account;
+- endpoint `POST /api/auth/resend-verification` per reinviare il link;
+- colonne di consenso su `users`: `privacy_consent_at`, `terms_consent_at`, `marketing_consent_at`, `consent_version`;
+- password minima 10 caratteri con almeno 3 categorie tra minuscole, maiuscole, numeri e simboli;
+- supporto SMTP tramite variabili ambiente.
+
+Frontend:
+
+- aggiunta pagina `/account` con tab `Accedi`, `Crea account`, `Conferma email`;
+- registrazione con email, password, ripeti password, consenso privacy, consenso condizioni e consenso marketing opzionale;
+- aggiunta pagina `/privacy`;
+- widget account nelle pagine prodotto lasciato come login rapido con link alla pagina account;
+- stile mantenuto coerente con la grafica CapitalEyes, con layout verificato su desktop e mobile.
+
+File aggiunti:
+
+```text
+static/account.html
+static/account-page.js
+static/privacy.html
+```
+
+File modificati:
+
+```text
+main.py
+static/account.css
+static/account.js
+DEPLOY_DIGITALOCEAN.md
+CONVERSAZIONE_DEPLOY.md
+```
+
+### Verifiche locali eseguite
+
+Compilazione:
+
+```powershell
+.venv\Scripts\python.exe -m py_compile .\main.py
+```
+
+Server locale testato:
+
+```text
+http://127.0.0.1:18082
+```
+
+Verificati via richieste HTTP reali:
+
+- consenso privacy mancante rifiutato con `400`;
+- password e ripeti password diverse rifiutate con `400`;
+- registrazione valida crea account `pending_verification` con `202`;
+- SMTP configurato ma non raggiungibile gestito senza errore `500`, con `emailSent=false`;
+- login prima della conferma email rifiutato con `403`;
+- link `/verify-email` attiva account e imposta cookie sessione;
+- `/api/auth/me` restituisce utente `active` e `emailVerified=true`;
+- salvataggio e rilettura dati su `personal-financial-life-plan`;
+- email duplicata rifiutata con `409`;
+- `/account` serve i campi richiesti e lo script dedicato.
+
+Verifiche visive:
+
+- screenshot desktop della pagina `/account?tab=register`;
+- screenshot mobile/coerente del layout registrazione.
+
+### Nota produzione
+
+Per completare il flusso online con email reali, su DigitalOcean vanno configurate queste variabili:
+
+```text
+CAPITALEYES_PUBLIC_URL=https://www.capitaleyes.app
+SMTP_HOST
+SMTP_PORT
+SMTP_USERNAME
+SMTP_PASSWORD
+SMTP_FROM
+```
+
+Senza SMTP configurato, la produzione puo creare account pending ma non puo inviare agli utenti il link di attivazione. Per dati personali persistenti resta valido anche il passaggio a database gestito, perche SQLite su App Platform non e sufficiente come storage definitivo.

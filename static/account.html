@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CapitalEyes | Area account</title>
+    <meta name="description" content="Crea o gestisci il tuo account personale CapitalEyes." />
+    <link rel="stylesheet" href="/account.css" />
+  </head>
+  <body class="account-page">
+    <main class="account-shell">
+      <section class="account-hero">
+        <a class="account-brand" href="/">
+          <span>CE</span>
+          <strong>CapitalEyes</strong>
+        </a>
+        <p class="account-eyebrow">Area account</p>
+        <h1>Accesso personale</h1>
+        <p>
+          Crea un account con email verificata per salvare i dati personali della suite:
+          piani finanziari, configurazioni di backtest e futuri prodotti CapitalEyes.
+        </p>
+        <div class="account-checks">
+          <span>Email verificata</span>
+          <span>Consensi registrati</span>
+          <span>Dati per prodotto</span>
+        </div>
+      </section>
+
+      <section class="account-card" aria-label="Gestione account">
+        <div class="account-tabs" role="tablist" aria-label="Account">
+          <button class="active" type="button" data-account-tab="login">Accedi</button>
+          <button type="button" data-account-tab="register">Crea account</button>
+          <button type="button" data-account-tab="resend">Conferma email</button>
+        </div>
+
+        <form class="account-form active" id="login-form">
+          <div class="account-form-head">
+            <span>Login</span>
+            <h2>Entra nel tuo workspace</h2>
+          </div>
+          <label>
+            <span>Email</span>
+            <input name="email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="current-password" minlength="10" required />
+          </label>
+          <button class="account-primary" type="submit">Accedi</button>
+        </form>
+
+        <form class="account-form" id="register-form">
+          <div class="account-form-head">
+            <span>Registrazione</span>
+            <h2>Crea un account verificato</h2>
+          </div>
+          <label>
+            <span>Email</span>
+            <input name="email" type="email" autocomplete="email" required />
+          </label>
+          <div class="account-two">
+            <label>
+              <span>Password</span>
+              <input name="password" type="password" autocomplete="new-password" minlength="10" required />
+            </label>
+            <label>
+              <span>Ripeti password</span>
+              <input name="passwordConfirm" type="password" autocomplete="new-password" minlength="10" required />
+            </label>
+          </div>
+          <p class="account-help">Minimo 10 caratteri, usando almeno tre tra maiuscole, minuscole, numeri e simboli.</p>
+          <div class="account-consents">
+            <label>
+              <input name="privacyConsent" type="checkbox" required />
+              <span>Acconsento al trattamento dei dati necessari per creare l'account e salvare i dati personali dei prodotti.</span>
+            </label>
+            <label>
+              <input name="termsConsent" type="checkbox" required />
+              <span>Accetto le condizioni del servizio e confermo di aver letto l'informativa privacy.</span>
+            </label>
+            <label>
+              <input name="marketingConsent" type="checkbox" />
+              <span>Voglio ricevere aggiornamenti prodotto via email. Posso revocare il consenso in seguito.</span>
+            </label>
+          </div>
+          <a class="account-policy-link" href="/privacy" target="_blank" rel="noreferrer">Leggi informativa privacy e trattamento dati</a>
+          <button class="account-primary" type="submit">Crea account</button>
+        </form>
+
+        <form class="account-form" id="resend-form">
+          <div class="account-form-head">
+            <span>Verifica email</span>
+            <h2>Reinvia conferma</h2>
+          </div>
+          <label>
+            <span>Email</span>
+            <input name="email" type="email" autocomplete="email" required />
+          </label>
+          <button class="account-primary" type="submit">Invia nuova email</button>
+        </form>
+
+        <div class="account-message" id="account-message" aria-live="polite"></div>
+        <a class="account-back" href="/platform">Torna alla platform</a>
+      </section>
+    </main>
+    <script src="/account-page.js" type="module"></script>
+  </body>
+</html>

@@ -3,7 +3,6 @@
     user: null,
     ready: false,
     open: false,
-    mode: "login",
     listeners: new Set(),
   };
 
@@ -49,8 +48,7 @@
   function render() {
     if (!root) return;
     const user = state.user;
-    const title = user ? "Account" : state.mode === "login" ? "Accedi" : "Crea account";
-    const formAction = state.mode === "login" ? "Accedi" : "Crea account";
+    const title = user ? "Account" : "Accedi";
     const toggleText = user ? user.email : "Account";
     root.innerHTML = `
       <button class="ce-account-toggle" type="button" data-account-toggle>${escapeHtml(toggleText)}</button>
@@ -79,12 +77,10 @@
                 </label>
                 <label>
                   <span>Password</span>
-                  <input name="password" type="password" autocomplete="${state.mode === "login" ? "current-password" : "new-password"}" minlength="8" required />
+                  <input name="password" type="password" autocomplete="current-password" minlength="10" required />
                 </label>
-                <button class="ce-account-primary" type="submit" data-account-submit>${escapeHtml(formAction)}</button>
-                <button class="ce-account-link" type="button" data-account-mode="${state.mode === "login" ? "register" : "login"}">
-                  ${state.mode === "login" ? "Crea un nuovo account" : "Ho gia un account"}
-                </button>
+                <button class="ce-account-primary" type="submit" data-account-submit>Accedi</button>
+                <a class="ce-account-link" href="/account">Crea account o conferma email</a>
               </form>
             `
         }
@@ -108,9 +104,8 @@
     if (!form) return;
     event.preventDefault();
     const formData = new FormData(form);
-    const endpoint = state.mode === "login" ? "/api/auth/login" : "/api/auth/register";
     try {
-      const payload = await requestJson(endpoint, {
+      const payload = await requestJson("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({
           email: String(formData.get("email") || ""),
@@ -118,7 +113,7 @@
         }),
       });
       state.user = payload.user || null;
-      message = state.mode === "login" ? "Accesso effettuato." : "Account creato.";
+      message = "Accesso effettuato.";
       messageIsError = false;
       render();
       emitChange();
@@ -137,14 +132,6 @@
     }
     if (target.closest("[data-account-close]")) {
       state.open = false;
-      render();
-      return;
-    }
-    const modeButton = target.closest("[data-account-mode]");
-    if (modeButton) {
-      state.mode = modeButton.dataset.accountMode || "login";
-      message = state.mode === "register" ? "Password minima: 8 caratteri." : "";
-      messageIsError = false;
       render();
       return;
     }

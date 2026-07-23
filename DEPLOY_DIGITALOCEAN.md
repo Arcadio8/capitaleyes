@@ -29,6 +29,21 @@ La risposta attesa e:
 {"ok": true, "app": "CapitalEyes"}
 ```
 
+## Variabili produzione account
+
+Per usare registrazione con conferma email in produzione, impostare su DigitalOcean App Platform queste variabili ambiente:
+
+```text
+CAPITALEYES_PUBLIC_URL=https://www.capitaleyes.app
+SMTP_HOST=...
+SMTP_PORT=587
+SMTP_USERNAME=...
+SMTP_PASSWORD=...
+SMTP_FROM=...
+```
+
+`SMTP_PASSWORD` va salvata come secret. Senza configurazione SMTP, il backend crea account in stato pending ma non puo inviare il link di attivazione agli utenti.
+
 ## Dominio GoDaddy
 
 1. In DigitalOcean apri l'app.
