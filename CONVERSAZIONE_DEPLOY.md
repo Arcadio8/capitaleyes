@@ -501,3 +501,157 @@ https://www.capitaleyes.app/cycle-life-budgeting
 ```
 
 Il deploy automatico DigitalOcean ha richiesto circa 1-2 minuti dopo i push su GitHub prima che il dominio pubblico iniziasse a servire la nuova build.
+
+## Aggiornamento 2026-07-23 - Account utenti e salvataggio dati
+
+### Richiesta fatta
+
+E stato chiesto di permettere a ogni utente di creare un account con email e password, come nei normali siti web, per salvare informazioni personali sui prodotti presenti nella suite CapitalEyes.
+
+### Soluzione implementata nel codice
+
+E stata implementata una prima versione funzionale di autenticazione usando solo librerie standard Python:
+
+- registrazione con email e password;
+- login;
+- logout;
+- sessione tramite cookie HttpOnly;
+- password salvate come hash PBKDF2-SHA256 con salt;
+- database SQLite locale;
+- tabella utenti;
+- tabella sessioni;
+- tabella dati prodotto per utente.
+
+Endpoint backend aggiunti in `main.py`:
+
+```text
+GET  /api/auth/me
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/user-data?product=...
+PUT  /api/user-data
+```
+
+Prodotti supportati dallo storage:
+
+```text
+personal-financial-life-plan
+backtest
+portfolio-tracker
+e-learning
+```
+
+File aggiunti:
+
+```text
+static/account.css
+static/account.js
+```
+
+File modificati:
+
+```text
+.gitignore
+main.py
+static/backtest.html
+static/backtest.js
+static/cycle-life-budgeting.html
+static/cycle-life-budgeting.js
+static/e-learning.html
+static/index.html
+static/platform.html
+static/portfolio-tracker.html
+CONVERSAZIONE_DEPLOY.md
+```
+
+Il widget account e stato collegato a tutte le pagine della suite.
+
+### Salvataggio per prodotto
+
+`Personal Financial Life Plan`:
+
+- continua a salvare in `localStorage` quando l'utente non e loggato;
+- quando l'utente e loggato, carica il piano dal database dell'account;
+- se non esiste ancora un piano remoto, carica quello locale e lo salva sull'account;
+- salva sul database utente le modifiche a profilo, entrate e uscite.
+
+`Backtest`:
+
+- salva per utente la configurazione del laboratorio:
+  - modalita PIC/PAC;
+  - asset;
+  - pesi;
+  - date;
+  - capitale iniziale;
+  - valuta;
+  - contributo PAC;
+  - frequenza;
+  - rebalance;
+  - benchmark;
+  - fee.
+
+`Portfolio Tracker` ed `E-Learning`:
+
+- hanno gia il widget account disponibile;
+- lo storage backend supporta gia le loro chiavi prodotto;
+- al momento non hanno ancora dati applicativi specifici da salvare perche sono placeholder.
+
+### Database locale
+
+Percorso default:
+
+```text
+capitaleyes.db
+```
+
+Variabile ambiente opzionale:
+
+```text
+CAPITALEYES_DB_PATH
+```
+
+File SQLite ignorati da Git:
+
+```text
+*.db
+*.db-shm
+*.db-wal
+```
+
+### Verifiche locali eseguite
+
+Compilazione backend:
+
+```powershell
+.venv\Scripts\python.exe -m py_compile .\main.py
+```
+
+Server locale testato:
+
+```text
+http://127.0.0.1:18081
+```
+
+Verificati:
+
+- `/api/health`;
+- registrazione account test;
+- `/api/auth/me`;
+- salvataggio dati su `personal-financial-life-plan`;
+- rilettura dati salvati;
+- logout;
+- accesso negato ai dati dopo logout;
+- caricamento widget account su `Personal Financial Life Plan`;
+- caricamento widget account su `Backtest`.
+
+### Nota importante produzione
+
+La versione implementata funziona con SQLite locale. Su DigitalOcean App Platform il filesystem dell'app e temporaneo/ephemeral: DigitalOcean raccomanda di usare Managed Databases o Spaces per dati persistenti e indica che App Platform non supporta volumi persistenti.
+
+Con l'attuale hosting App Platform, gli account online possono funzionare durante la vita dell'istanza, ma non vanno considerati ancora una soluzione definitiva per dati personali persistenti. Per produzione reale serve il passaggio successivo:
+
+1. creare un database gestito su DigitalOcean;
+2. collegarlo all'app;
+3. migrare lo storage da SQLite locale al database gestito;
+4. configurare backup e policy dati.

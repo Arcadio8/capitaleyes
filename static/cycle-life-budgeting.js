@@ -1,4 +1,5 @@
 const storageKey = "capitaleyes-cycle-life-budgeting-v2";
+const productKey = "personal-financial-life-plan";
 const targetAge = 90;
 const palette = ["#69d5c7", "#f2b967", "#8ba0ff", "#65d59a", "#d66a5e", "#c994e8"];
 
@@ -25,6 +26,9 @@ const defaultPlan = {
 };
 
 let plan = loadPlan();
+let cloudSaveEnabled = false;
+let cloudSaveTimer = null;
+let accountSyncBound = false;
 
 const nodes = {
   sidebarPhase: document.querySelector("#sidebar-phase"),
@@ -73,19 +77,75 @@ function clone(value) {
 function loadPlan() {
   try {
     const raw = localStorage.getItem(storageKey);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return {
-      profile: { ...clone(defaultPlan.profile), ...(parsed.profile || {}) },
-      income: Array.isArray(parsed.income) ? parsed.income : clone(defaultPlan.income),
-      expenses: Array.isArray(parsed.expenses) ? parsed.expenses : clone(defaultPlan.expenses),
-    };
+    return normalizePlan(raw ? JSON.parse(raw) : {});
   } catch {
     return clone(defaultPlan);
   }
 }
 
+function normalizePlan(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    profile: { ...clone(defaultPlan.profile), ...(source.profile || {}) },
+    income: Array.isArray(source.income) ? source.income : clone(defaultPlan.income),
+    expenses: Array.isArray(source.expenses) ? source.expenses : clone(defaultPlan.expenses),
+  };
+}
+
 function savePlan() {
   localStorage.setItem(storageKey, JSON.stringify(plan));
+  scheduleCloudSave();
+}
+
+function accountApi() {
+  return window.CapitalEyesAccount || null;
+}
+
+async function savePlanToAccount() {
+  const api = accountApi();
+  if (!cloudSaveEnabled || !api?.getUser()) return;
+  await api.saveProductData(productKey, { plan });
+}
+
+function scheduleCloudSave() {
+  if (!cloudSaveEnabled || !accountApi()?.getUser()) return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(() => {
+    savePlanToAccount().catch(() => undefined);
+  }, 500);
+}
+
+async function loadPlanFromAccount(user) {
+  cloudSaveEnabled = false;
+  clearTimeout(cloudSaveTimer);
+  if (!user) return;
+  const api = accountApi();
+  if (!api) return;
+  try {
+    const remote = await api.loadProductData(productKey);
+    if (remote?.plan) {
+      plan = normalizePlan(remote.plan);
+      renderInputs();
+      renderRows("income");
+      renderRows("expenses");
+      renderDashboard();
+    }
+    cloudSaveEnabled = true;
+    if (!remote?.plan) {
+      await savePlanToAccount();
+    }
+  } catch {
+    cloudSaveEnabled = true;
+  }
+}
+
+function bindAccountSync() {
+  const api = accountApi();
+  if (!api || accountSyncBound) return;
+  accountSyncBound = true;
+  api.onChange((user) => {
+    loadPlanFromAccount(user);
+  });
 }
 
 function formatNumber(value, digits = 0) {
@@ -534,6 +594,7 @@ nodes.addExpense.addEventListener("click", () => {
 nodes.savePlan.addEventListener("click", () => {
   updateProfileFromInputs();
   savePlan();
+  savePlanToAccount().catch(() => undefined);
   nodes.savePlan.textContent = "Salvato";
   setTimeout(() => {
     nodes.savePlan.textContent = "Salva";
@@ -549,5 +610,7 @@ nodes.resetPlan.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => renderDashboard());
+window.addEventListener("capitaleyes:account-ready", bindAccountSync);
 
 initialize();
+bindAccountSync();

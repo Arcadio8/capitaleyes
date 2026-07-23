@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import hmac
 import math
 import os
+import re
+import secrets
+import sqlite3
 import time
 import urllib.parse
 import urllib.request
+from http.cookies import SimpleCookie
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from http import HTTPStatus
@@ -19,6 +25,14 @@ STATIC_DIR = BASE_DIR / "static"
 DEFAULT_PORT = 8000
 DEFAULT_HOST = "127.0.0.1"
 CLOUD_HOST = "0.0.0.0"
+DEFAULT_DB_PATH = BASE_DIR / "capitaleyes.db"
+DB_PATH = Path(os.environ.get("CAPITALEYES_DB_PATH", DEFAULT_DB_PATH)).resolve()
+SESSION_COOKIE = "capitaleyes_session"
+SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
+PASSWORD_HASH_ITERATIONS = 260_000
+MAX_JSON_BODY_BYTES = 256 * 1024
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+PRODUCT_KEYS = {"personal-financial-life-plan", "backtest", "portfolio-tracker", "e-learning"}
 PAGE_ROUTES = {
     "/platform": "/platform.html",
     "/backtest": "/backtest.html",
@@ -38,6 +52,13 @@ class ApiError(Exception):
         super().__init__(message)
         self.message = message
         self.status = status
+
+
+@dataclass(frozen=True)
+class AuthUser:
+    id: int
+    email: str
+    created_at: str
 
 
 @dataclass(frozen=True)
@@ -69,6 +90,156 @@ class MarketHistory:
     exchange: str
     instrument_type: str
     short_name: str
+
+
+def now_timestamp() -> int:
+    return int(time.time())
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def database_connection() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    return connection
+
+
+def initialize_database() -> None:
+    with database_connection() as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+                token_hash TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS product_data (
+                user_id INTEGER NOT NULL,
+                product_key TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, product_key),
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions (expires_at)")
+        connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (now_timestamp(),))
+
+
+def normalize_email(value: str) -> str:
+    email = value.strip().lower()
+    if not EMAIL_PATTERN.match(email):
+        raise ApiError("Inserisci un indirizzo email valido.")
+    if len(email) > 254:
+        raise ApiError("Indirizzo email troppo lungo.")
+    return email
+
+
+def validate_password(value: str) -> str:
+    password = value or ""
+    if len(password) < 8:
+        raise ApiError("La password deve contenere almeno 8 caratteri.")
+    if len(password) > 256:
+        raise ApiError("Password troppo lunga.")
+    return password
+
+
+def password_hash(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PASSWORD_HASH_ITERATIONS)
+    return (
+        f"pbkdf2_sha256${PASSWORD_HASH_ITERATIONS}$"
+        f"{salt.hex()}${digest.hex()}"
+    )
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    try:
+        algorithm, iterations, salt_hex, digest_hex = stored_hash.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        salt = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(digest_hex)
+        candidate = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, int(iterations))
+        return hmac.compare_digest(candidate, expected)
+    except (TypeError, ValueError):
+        return False
+
+
+def hash_session_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def public_user(row: sqlite3.Row) -> AuthUser:
+    return AuthUser(id=int(row["id"]), email=str(row["email"]), created_at=str(row["created_at"]))
+
+
+def create_session(user_id: int) -> tuple[str, int]:
+    token = secrets.token_urlsafe(32)
+    issued_at = now_timestamp()
+    expires_at = issued_at + SESSION_TTL_SECONDS
+    with database_connection() as connection:
+        connection.execute(
+            "INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+            (hash_session_token(token), user_id, issued_at, expires_at),
+        )
+    return token, expires_at
+
+
+def find_user_by_session(token: str | None) -> AuthUser | None:
+    if not token:
+        return None
+    with database_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT users.id, users.email, users.created_at, sessions.expires_at
+            FROM sessions
+            JOIN users ON users.id = sessions.user_id
+            WHERE sessions.token_hash = ?
+            """,
+            (hash_session_token(token),),
+        ).fetchone()
+        if not row:
+            return None
+        if int(row["expires_at"]) <= now_timestamp():
+            connection.execute("DELETE FROM sessions WHERE token_hash = ?", (hash_session_token(token),))
+            return None
+        return public_user(row)
+
+
+def serialize_user(user: AuthUser | None) -> dict[str, Any] | None:
+    if not user:
+        return None
+    return {"id": user.id, "email": user.email, "createdAt": user.created_at}
+
+
+def clean_product_key(value: str) -> str:
+    product_key = value.strip().lower()
+    if product_key not in PRODUCT_KEYS:
+        supported = ", ".join(sorted(PRODUCT_KEYS))
+        raise ApiError(f"Prodotto non supportato. Usa uno tra: {supported}.")
+    return product_key
 
 
 def parse_date(value: str, field: str) -> date:
@@ -1016,6 +1187,12 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/health":
             self.send_json({"ok": True, "app": "CapitalEyes"})
             return
+        if parsed.path == "/api/auth/me":
+            self.handle_auth_me()
+            return
+        if parsed.path == "/api/user-data":
+            self.handle_user_data_get(parsed.query)
+            return
         if parsed.path == "/api/search":
             self.handle_search(parsed.query)
             return
@@ -1035,6 +1212,200 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
         if parsed.path in PAGE_ROUTES:
             self.path = PAGE_ROUTES[parsed.path]
         super().do_HEAD()
+
+    def do_POST(self) -> None:  # noqa: N802 - stdlib hook.
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/auth/register":
+            self.handle_register()
+            return
+        if parsed.path == "/api/auth/login":
+            self.handle_login()
+            return
+        if parsed.path == "/api/auth/logout":
+            self.handle_logout()
+            return
+        self.send_json({"error": "Endpoint non trovato."}, HTTPStatus.NOT_FOUND)
+
+    def do_PUT(self) -> None:  # noqa: N802 - stdlib hook.
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/api/user-data":
+            self.handle_user_data_put()
+            return
+        self.send_json({"error": "Endpoint non trovato."}, HTTPStatus.NOT_FOUND)
+
+    def cookie_session_token(self) -> str | None:
+        raw_cookie = self.headers.get("Cookie", "")
+        if not raw_cookie:
+            return None
+        cookie = SimpleCookie()
+        cookie.load(raw_cookie)
+        morsel = cookie.get(SESSION_COOKIE)
+        return morsel.value if morsel else None
+
+    def current_user(self) -> AuthUser | None:
+        return find_user_by_session(self.cookie_session_token())
+
+    def require_user(self) -> AuthUser:
+        user = self.current_user()
+        if not user:
+            raise ApiError("Accesso richiesto.", HTTPStatus.UNAUTHORIZED)
+        return user
+
+    def is_secure_request(self) -> bool:
+        forwarded_proto = self.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
+        forwarded = self.headers.get("Forwarded", "").lower()
+        return forwarded_proto == "https" or "proto=https" in forwarded
+
+    def origin_allowed(self) -> bool:
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True
+        origin_host = urllib.parse.urlparse(origin).netloc.lower()
+        request_host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "").lower()
+        return bool(origin_host and request_host and origin_host == request_host)
+
+    def read_json_body(self) -> dict[str, Any]:
+        if not self.origin_allowed():
+            raise ApiError("Origine richiesta non valida.", HTTPStatus.FORBIDDEN)
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw_length)
+        except ValueError as exc:
+            raise ApiError("Content-Length non valido.") from exc
+        if length <= 0:
+            return {}
+        if length > MAX_JSON_BODY_BYTES:
+            raise ApiError("Payload troppo grande.", HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        raw_body = self.rfile.read(length)
+        try:
+            payload = json.loads(raw_body.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ApiError("JSON non valido.") from exc
+        if not isinstance(payload, dict):
+            raise ApiError("Il payload deve essere un oggetto JSON.")
+        return payload
+
+    def set_session_cookie(self, token: str, max_age: int = SESSION_TTL_SECONDS) -> None:
+        cookie = (
+            f"{SESSION_COOKIE}={token}; Path=/; Max-Age={max_age}; "
+            "HttpOnly; SameSite=Lax"
+        )
+        if self.is_secure_request():
+            cookie += "; Secure"
+        self.send_header("Set-Cookie", cookie)
+
+    def clear_session_cookie(self) -> None:
+        cookie = (
+            f"{SESSION_COOKIE}=deleted; Path=/; Max-Age=0; "
+            "Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax"
+        )
+        if self.is_secure_request():
+            cookie += "; Secure"
+        self.send_header("Set-Cookie", cookie)
+
+    def handle_register(self) -> None:
+        try:
+            payload = self.read_json_body()
+            email = normalize_email(str(payload.get("email", "")))
+            password = validate_password(str(payload.get("password", "")))
+            created_at = utc_now_iso()
+            with database_connection() as connection:
+                try:
+                    cursor = connection.execute(
+                        "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+                        (email, password_hash(password), created_at),
+                    )
+                except sqlite3.IntegrityError as exc:
+                    raise ApiError("Esiste gia un account con questa email.", HTTPStatus.CONFLICT) from exc
+                user = AuthUser(id=int(cursor.lastrowid), email=email, created_at=created_at)
+            token, expires_at = create_session(user.id)
+            self.send_json({"ok": True, "user": serialize_user(user), "expiresAt": expires_at}, set_cookie=token)
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected register error: {exc}")
+            self.send_json({"error": "Errore interno durante la registrazione."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def handle_login(self) -> None:
+        try:
+            payload = self.read_json_body()
+            email = normalize_email(str(payload.get("email", "")))
+            password = str(payload.get("password", ""))
+            with database_connection() as connection:
+                row = connection.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            if not row or not verify_password(password, str(row["password_hash"])):
+                raise ApiError("Email o password non validi.", HTTPStatus.UNAUTHORIZED)
+            user = public_user(row)
+            token, expires_at = create_session(user.id)
+            self.send_json({"ok": True, "user": serialize_user(user), "expiresAt": expires_at}, set_cookie=token)
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected login error: {exc}")
+            self.send_json({"error": "Errore interno durante il login."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def handle_logout(self) -> None:
+        try:
+            token = self.cookie_session_token()
+            if token:
+                with database_connection() as connection:
+                    connection.execute("DELETE FROM sessions WHERE token_hash = ?", (hash_session_token(token),))
+            self.send_json({"ok": True}, clear_cookie=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected logout error: {exc}")
+            self.send_json({"error": "Errore interno durante il logout."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def handle_auth_me(self) -> None:
+        self.send_json({"user": serialize_user(self.current_user())})
+
+    def handle_user_data_get(self, raw_query: str) -> None:
+        try:
+            user = self.require_user()
+            query = urllib.parse.parse_qs(raw_query)
+            product_key = clean_product_key(query.get("product", [""])[0])
+            with database_connection() as connection:
+                row = connection.execute(
+                    "SELECT payload, updated_at FROM product_data WHERE user_id = ? AND product_key = ?",
+                    (user.id, product_key),
+                ).fetchone()
+            if not row:
+                self.send_json({"data": None, "updatedAt": None})
+                return
+            self.send_json({"data": json.loads(str(row["payload"])), "updatedAt": row["updated_at"]})
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected user data read error: {exc}")
+            self.send_json({"error": "Errore interno durante il caricamento dati."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def handle_user_data_put(self) -> None:
+        try:
+            user = self.require_user()
+            payload = self.read_json_body()
+            product_key = clean_product_key(str(payload.get("product", "")))
+            data = payload.get("data")
+            if data is None:
+                raise ApiError("Dati prodotto mancanti.")
+            encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+            if len(encoded.encode("utf-8")) > MAX_JSON_BODY_BYTES:
+                raise ApiError("Dati prodotto troppo grandi.", HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+            updated_at = utc_now_iso()
+            with database_connection() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO product_data (user_id, product_key, payload, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(user_id, product_key)
+                    DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at
+                    """,
+                    (user.id, product_key, encoded, updated_at),
+                )
+            self.send_json({"ok": True, "updatedAt": updated_at})
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected user data write error: {exc}")
+            self.send_json({"error": "Errore interno durante il salvataggio dati."}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def handle_search(self, raw_query: str) -> None:
         try:
@@ -1057,16 +1428,28 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
             print(f"Unexpected error: {exc}")
             self.send_json({"error": "Errore interno durante il backtest."}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
-    def send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
+    def send_json(
+        self,
+        payload: dict[str, Any],
+        status: HTTPStatus = HTTPStatus.OK,
+        set_cookie: str | None = None,
+        clear_cookie: bool = False,
+    ) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        if set_cookie:
+            self.set_session_cookie(set_cookie)
+        if clear_cookie:
+            self.clear_session_cookie()
         self.end_headers()
         self.wfile.write(body)
 
 
 def run() -> None:
+    initialize_database()
     port = int(os.environ.get("PORT", DEFAULT_PORT))
     host = os.environ.get("HOST", CLOUD_HOST if "PORT" in os.environ else DEFAULT_HOST)
     server = ThreadingHTTPServer((host, port), CapitalEyesHandler)

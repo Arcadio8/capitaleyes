@@ -1,4 +1,9 @@
 const palette = ["#69d5c7", "#f2b967", "#8ba0ff", "#65d59a", "#d66a5e", "#c994e8", "#8ecf73", "#d7d0ba"];
+const productKey = "backtest";
+
+let cloudSaveEnabled = false;
+let cloudSaveTimer = null;
+let accountSyncBound = false;
 
 const state = {
   mode: "pic",
@@ -145,6 +150,99 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function accountApi() {
+  return window.CapitalEyesAccount || null;
+}
+
+function readBacktestSettings() {
+  readAssets();
+  return {
+    mode: state.mode,
+    assets: state.assets.map((asset) => ({ ...asset })),
+    start: nodes.start.value,
+    end: nodes.end.value,
+    initial: nodes.initial.value,
+    baseCurrency: nodes.baseCurrency.value,
+    contribution: nodes.contribution.value,
+    contributionFrequency: nodes.contributionFrequency.value,
+    rebalance: nodes.rebalance.value,
+    benchmark: nodes.benchmark.value,
+    fee: nodes.fee.value,
+  };
+}
+
+function applyBacktestSettings(settings) {
+  if (!settings || typeof settings !== "object") return;
+  if (Array.isArray(settings.assets) && settings.assets.length) {
+    state.assets = settings.assets
+      .map((asset) => ({
+        symbol: String(asset.symbol || "").trim().toUpperCase(),
+        name: String(asset.name || asset.symbol || "").trim(),
+        weight: Number(asset.weight) || 0,
+      }))
+      .filter((asset) => asset.symbol);
+  }
+  state.mode = settings.mode === "pac" ? "pac" : "pic";
+  nodes.modeButtons.forEach((button) => button.classList.toggle("active", button.dataset.mode === state.mode));
+  nodes.pacFields.forEach((field) => {
+    field.style.display = state.mode === "pac" ? "grid" : "none";
+  });
+  if (settings.start) nodes.start.value = settings.start;
+  if (settings.end) nodes.end.value = settings.end;
+  if (settings.initial !== undefined) nodes.initial.value = settings.initial;
+  if (settings.baseCurrency) nodes.baseCurrency.value = settings.baseCurrency;
+  if (settings.contribution !== undefined) nodes.contribution.value = settings.contribution;
+  if (settings.contributionFrequency) nodes.contributionFrequency.value = settings.contributionFrequency;
+  if (settings.rebalance) nodes.rebalance.value = settings.rebalance;
+  if (settings.benchmark !== undefined) nodes.benchmark.value = settings.benchmark;
+  if (settings.fee !== undefined) nodes.fee.value = settings.fee;
+  renderAssets();
+}
+
+async function saveBacktestSettingsToAccount() {
+  const api = accountApi();
+  if (!cloudSaveEnabled || !api?.getUser()) return;
+  await api.saveProductData(productKey, { settings: readBacktestSettings() });
+}
+
+function scheduleBacktestSettingsSave() {
+  if (!cloudSaveEnabled || !accountApi()?.getUser()) return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(() => {
+    saveBacktestSettingsToAccount().catch(() => undefined);
+  }, 600);
+}
+
+async function loadBacktestSettingsFromAccount(user) {
+  cloudSaveEnabled = false;
+  clearTimeout(cloudSaveTimer);
+  if (!user) return;
+  const api = accountApi();
+  if (!api) return;
+  try {
+    const remote = await api.loadProductData(productKey);
+    if (remote?.settings) {
+      applyBacktestSettings(remote.settings);
+      cloudSaveEnabled = true;
+      await runBacktest();
+      return;
+    }
+    cloudSaveEnabled = true;
+    await saveBacktestSettingsToAccount();
+  } catch {
+    cloudSaveEnabled = true;
+  }
+}
+
+function bindAccountSync() {
+  const api = accountApi();
+  if (!api || accountSyncBound) return;
+  accountSyncBound = true;
+  api.onChange((user) => {
+    loadBacktestSettingsFromAccount(user);
+  });
+}
+
 function renderAssets() {
   nodes.assetBody.innerHTML = state.assets
     .map(
@@ -190,6 +288,7 @@ function addAsset(asset) {
   const remaining = Math.max(0, 100 - currentTotal);
   state.assets.push({ symbol, name: asset.name || symbol, weight: remaining || 0 });
   renderAssets();
+  scheduleBacktestSettingsSave();
   nodes.searchInput.value = "";
   nodes.searchResults.innerHTML = "";
 }
@@ -271,6 +370,7 @@ async function runBacktest() {
     renderResult(payload);
     nodes.formMessage.textContent = `${payload.range.bars} sessioni dal ${payload.range.start} al ${payload.range.end}.`;
     nodes.exportButton.disabled = false;
+    scheduleBacktestSettingsSave();
   } catch (error) {
     nodes.formMessage.textContent = error.message;
   } finally {
@@ -826,6 +926,7 @@ function setupChartInteraction(type, canvas, tooltip) {
 nodes.assetBody.addEventListener("input", () => {
   readAssets();
   updateWeightState();
+  scheduleBacktestSettingsSave();
 });
 
 nodes.assetBody.addEventListener("click", (event) => {
@@ -834,6 +935,7 @@ nodes.assetBody.addEventListener("click", (event) => {
   if (!button) return;
   state.assets.splice(Number(button.dataset.remove), 1);
   renderAssets();
+  scheduleBacktestSettingsSave();
 });
 
 nodes.searchInput.addEventListener("input", () => {
@@ -860,8 +962,12 @@ nodes.modeButtons.forEach((button) => {
       field.style.display = state.mode === "pac" ? "grid" : "none";
     });
     nodes.formMessage.textContent = state.mode === "pac" ? "PAC attivo: usero i versamenti periodici." : "PIC attivo: investo il capitale iniziale.";
+    scheduleBacktestSettingsSave();
   });
 });
+
+nodes.form.addEventListener("input", scheduleBacktestSettingsSave);
+nodes.form.addEventListener("change", scheduleBacktestSettingsSave);
 
 nodes.form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -878,6 +984,7 @@ window.addEventListener("resize", () => {
     drawAllocationChart(state.result.assets);
   }
 });
+window.addEventListener("capitaleyes:account-ready", bindAccountSync);
 
 setupChartInteraction("equity", nodes.equityChart, nodes.equityTooltip);
 setupChartInteraction("drawdown", nodes.drawdownChart, nodes.drawdownTooltip);
@@ -889,3 +996,4 @@ nodes.pacFields.forEach((field) => {
 });
 renderAssets();
 runBacktest();
+bindAccountSync();

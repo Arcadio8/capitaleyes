@@ -6,3 +6,6 @@ __pycache__/
 .env
 .env.*
 *.log
+*.db
+*.db-shm
+*.db-wal
