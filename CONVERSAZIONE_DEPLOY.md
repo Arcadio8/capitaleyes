@@ -794,3 +794,29 @@ Di default questo flag non e impostato, quindi oggi il sito non richiede conferm
 - account `pending` esistente viene sbloccato al login;
 - `/account` non mostra piu la scheda `Conferma email`;
 - screenshot desktop verificato per la pagina registrazione.
+
+## 2026-07-23 - Accesso suite solo con account
+
+### Nuova richiesta
+
+L'utente ha chiarito che per accedere alla suite bisogna per forza registrarsi o fare login.
+
+### Modifiche locali
+
+- protette lato backend le pagine `/platform`, `/backtest`, `/portfolio-tracker`, `/cycle-life-budgeting`, `/e-learning`;
+- protetti anche gli accessi diretti ai rispettivi file `.html`;
+- gli utenti non loggati vengono reindirizzati a `/account?next=...`;
+- dopo login o registrazione, la pagina account riporta l'utente alla pagina richiesta tramite parametro `next`;
+- protette le API operative `/api/search` e `/api/backtest`;
+- home, pagina account, privacy e asset statici restano pubblici.
+
+### Verifiche locali eseguite
+
+- `/platform` senza cookie restituisce redirect a `/account?next=%2Fplatform`;
+- accesso diretto a `/backtest.html` senza cookie restituisce redirect a `/account?next=%2Fbacktest`;
+- richiesta `HEAD` a una pagina prodotto senza cookie restituisce redirect;
+- `/api/search` senza cookie restituisce `401`;
+- `/account?next=/backtest` resta pubblico;
+- registrazione valida crea sessione;
+- con cookie valido `/platform` e `/cycle-life-budgeting` sono accessibili;
+- con cookie valido `/api/search` risponde correttamente.

@@ -51,6 +51,20 @@ function passwordIssue(value) {
   return "";
 }
 
+function redirectTarget() {
+  const fallback = "/platform";
+  const raw = new URLSearchParams(window.location.search).get("next");
+  if (!raw) return fallback;
+  try {
+    const url = new URL(raw, window.location.origin);
+    const allowedPaths = new Set(["/platform", "/backtest", "/portfolio-tracker", "/cycle-life-budgeting", "/e-learning"]);
+    if (url.origin !== window.location.origin || !allowedPaths.has(url.pathname)) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
+}
+
 nodes.tabs.forEach((tab) => {
   tab.addEventListener("click", () => setActiveTab(tab.dataset.accountTab));
 });
@@ -66,8 +80,8 @@ nodes.forms.login.addEventListener("submit", async (event) => {
         password: data.password,
       }),
     });
-    setMessage("Accesso effettuato. Apertura platform...");
-    window.location.href = "/platform";
+    setMessage("Accesso effettuato. Apertura area richiesta...");
+    window.location.href = redirectTarget();
   } catch (error) {
     setMessage(error.message, true);
   }
@@ -97,9 +111,9 @@ nodes.forms.register.addEventListener("submit", async (event) => {
         marketingConsent: data.marketingConsent === "on",
       }),
     });
-    setMessage("Account creato. Apertura platform...");
+    setMessage("Account creato. Apertura area richiesta...");
     window.setTimeout(() => {
-      window.location.href = "/platform";
+      window.location.href = redirectTarget();
     }, 450);
   } catch (error) {
     setMessage(error.message, true);

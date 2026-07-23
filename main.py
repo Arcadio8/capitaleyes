@@ -55,6 +55,10 @@ PAGE_ROUTES = {
     "/cycle-life-budgeting": "/cycle-life-budgeting.html",
     "/e-learning": "/e-learning.html",
 }
+PROTECTED_PAGE_ROUTES = {"/platform", "/backtest", "/portfolio-tracker", "/cycle-life-budgeting", "/e-learning"}
+PROTECTED_PAGE_FILES = {PAGE_ROUTES[route] for route in PROTECTED_PAGE_ROUTES}
+PROTECTED_FILE_ROUTES = {file_path: route for route, file_path in PAGE_ROUTES.items() if route in PROTECTED_PAGE_ROUTES}
+PROTECTED_GET_APIS = {"/api/search", "/api/backtest"}
 
 DATA_CACHE: dict[str, tuple[float, "MarketHistory"]] = {}
 SEARCH_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
@@ -1345,11 +1349,15 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/user-data":
             self.handle_user_data_get(parsed.query)
             return
-        if parsed.path == "/api/search":
-            self.handle_search(parsed.query)
+        if parsed.path in PROTECTED_GET_APIS:
+            if not self.require_api_access():
+                return
+            if parsed.path == "/api/search":
+                self.handle_search(parsed.query)
+            elif parsed.path == "/api/backtest":
+                self.handle_backtest(parsed.query)
             return
-        if parsed.path == "/api/backtest":
-            self.handle_backtest(parsed.query)
+        if not self.require_page_access(parsed):
             return
         if parsed.path == "/":
             self.path = "/index.html"
@@ -1359,6 +1367,8 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
 
     def do_HEAD(self) -> None:  # noqa: N802 - stdlib hook.
         parsed = urllib.parse.urlparse(self.path)
+        if not self.require_page_access(parsed):
+            return
         if parsed.path == "/":
             self.path = "/index.html"
         if parsed.path in PAGE_ROUTES:
@@ -1405,6 +1415,32 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
         if not user:
             raise ApiError("Accesso richiesto.", HTTPStatus.UNAUTHORIZED)
         return user
+
+    def requested_target(self, parsed: urllib.parse.ParseResult) -> str:
+        if parsed.path in PROTECTED_FILE_ROUTES:
+            path = PROTECTED_FILE_ROUTES[parsed.path]
+        else:
+            path = parsed.path
+        return f"{path}?{parsed.query}" if parsed.query else path
+
+    def account_redirect(self, target: str) -> str:
+        return "/account?" + urllib.parse.urlencode({"next": target})
+
+    def require_page_access(self, parsed: urllib.parse.ParseResult) -> bool:
+        if parsed.path not in PROTECTED_PAGE_ROUTES and parsed.path not in PROTECTED_PAGE_FILES:
+            return True
+        if self.current_user():
+            return True
+        self.send_redirect(self.account_redirect(self.requested_target(parsed)))
+        return False
+
+    def require_api_access(self) -> bool:
+        try:
+            self.require_user()
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+            return False
+        return True
 
     def is_secure_request(self) -> bool:
         forwarded_proto = self.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
