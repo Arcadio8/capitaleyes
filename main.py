@@ -59,6 +59,7 @@ PROTECTED_PAGE_ROUTES = {"/platform", "/backtest", "/portfolio-tracker", "/cycle
 PROTECTED_PAGE_FILES = {PAGE_ROUTES[route] for route in PROTECTED_PAGE_ROUTES}
 PROTECTED_FILE_ROUTES = {file_path: route for route, file_path in PAGE_ROUTES.items() if route in PROTECTED_PAGE_ROUTES}
 PROTECTED_GET_APIS = {"/api/search", "/api/backtest"}
+NO_STORE_STATIC_EXTENSIONS = {".html", ".css", ".js"}
 
 DATA_CACHE: dict[str, tuple[float, "MarketHistory"]] = {}
 SEARCH_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
@@ -1331,6 +1332,11 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
         print(f"[{timestamp}] {self.address_string()} {format % args}")
 
     def end_headers(self) -> None:
+        extension = Path(urllib.parse.urlparse(self.path).path).suffix.lower()
+        if extension in NO_STORE_STATIC_EXTENSIONS:
+            self.send_header("Cache-Control", "no-store, max-age=0, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         super().end_headers()

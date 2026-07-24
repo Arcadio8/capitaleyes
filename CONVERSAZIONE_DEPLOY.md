@@ -820,3 +820,29 @@ L'utente ha chiarito che per accedere alla suite bisogna per forza registrarsi o
 - registrazione valida crea sessione;
 - con cookie valido `/platform` e `/cycle-life-budgeting` sono accessibili;
 - con cookie valido `/api/search` risponde correttamente.
+
+## 2026-07-24 - Cache telefono e asset non aggiornati
+
+### Problema segnalato
+
+L'utente ha segnalato che dal telefono il modulo `Personal Financial Life Plan` sembrava non aggiornato al nuovo prodotto.
+
+### Diagnosi
+
+Il sito online risultava gia aggiornato lato server: con sessione valida `/cycle-life-budgeting` conteneva `Personal Financial Life Plan`, campi mensili `Entrate`/`Uscite` e nessun vecchio nome del prodotto.
+
+La causa probabile era cache del browser mobile: gli asset statici venivano serviti senza versionamento esplicito nei link HTML e con header cache non abbastanza rigidi per un'app in sviluppo.
+
+### Modifiche locali
+
+- aggiunti header anti-cache per file `.html`, `.css` e `.js`:
+  - `Cache-Control: no-store, max-age=0, must-revalidate`;
+  - `Pragma: no-cache`;
+  - `Expires: 0`;
+- aggiunto versionamento query sugli asset statici principali:
+  - `?v=20260724-1`;
+- aggiornate home, account, privacy, platform e pagine prodotto.
+
+### Obiettivo
+
+Forzare browser desktop/mobile a scaricare HTML, CSS e JavaScript aggiornati dopo i deploy, evitando che il telefono continui a mostrare vecchie versioni della suite.
