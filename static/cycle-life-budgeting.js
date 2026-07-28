@@ -6,22 +6,15 @@ const palette = ["#69d5c7", "#f2b967", "#8ba0ff", "#65d59a", "#d66a5e", "#c994e8
 const defaultPlan = {
   profile: {
     currency: "EUR",
-    age: 34,
-    initialWealth: 93000,
+    age: 30,
+    initialWealth: 10000,
     returnRate: 5.0,
   },
   income: [
-    { name: "Stipendio netto", amount: 5200 },
+    { name: "Entrate mensili", amount: 2000 },
   ],
   expenses: [
-    { name: "Casa e mutuo/affitto", amount: 1350 },
-    { name: "Spesa e beni base", amount: 560 },
-    { name: "Utenze e assicurazioni", amount: 310 },
-    { name: "Trasporti", amount: 260 },
-    { name: "Lifestyle", amount: 520 },
-    { name: "Viaggi e tempo libero", amount: 300 },
-    { name: "Rate debiti", amount: 220 },
-    { name: "Investimenti automatici", amount: 900 },
+    { name: "Uscite generiche", amount: 1500 },
   ],
 };
 
