@@ -1427,7 +1427,11 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook.
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/health":
-            self.send_json({"ok": True, "app": "CapitalEyes"})
+            self.send_json({
+                "ok": True,
+                "app": "CapitalEyes",
+                "database": "postgres" if USE_POSTGRES else "sqlite",
+            })
             return
         if parsed.path == "/api/auth/me":
             self.handle_auth_me()
