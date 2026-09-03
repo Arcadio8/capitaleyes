@@ -33,6 +33,37 @@ La risposta attesa e:
 
 La registrazione attuale e immediata: l'utente crea l'account, accetta i consensi e viene loggato senza conferma email.
 
+## Database Supabase
+
+Per salvare davvero account, sessioni e dati prodotto in produzione, l'app puo usare Supabase come database PostgreSQL esterno.
+
+Il progetto Supabase creato e:
+
+```text
+https://jujznnewdylqnfrnkovu.supabase.co
+```
+
+Su Supabase apri `Project Settings` > `Database` > `Connection string` e copia la stringa PostgreSQL del pooler. Non usare la Project API Key nel frontend per questo flusso: il backend Python deve parlare direttamente con PostgreSQL.
+
+Su DigitalOcean App Platform aggiungi al componente web una variabile ambiente runtime cifrata:
+
+```text
+DATABASE_URL=postgresql://...
+```
+
+La password deve restare solo su Supabase/DigitalOcean, non nel repository. Se la stringa Supabase non include gia `sslmode=require`, il backend lo aggiunge automaticamente per connessioni Supabase.
+
+Con `DATABASE_URL` configurato, `main.py` crea e usa queste tabelle su Supabase:
+
+```text
+users
+sessions
+email_verification_tokens
+product_data
+```
+
+Senza `DATABASE_URL`, in locale resta attivo SQLite con `capitaleyes.db`.
+
 La conferma email e lasciata disattivata per il momento. Se in futuro viene riattivata con `CAPITALEYES_REQUIRE_EMAIL_CONFIRMATION=true`, impostare su DigitalOcean App Platform queste variabili ambiente:
 
 ```text

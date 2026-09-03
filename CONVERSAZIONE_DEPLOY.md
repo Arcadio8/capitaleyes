@@ -846,3 +846,57 @@ La causa probabile era cache del browser mobile: gli asset statici venivano serv
 ### Obiettivo
 
 Forzare browser desktop/mobile a scaricare HTML, CSS e JavaScript aggiornati dopo i deploy, evitando che il telefono continui a mostrare vecchie versioni della suite.
+
+## 2026-09-03 - Collegamento Supabase per account persistenti
+
+### Nuova richiesta
+
+L'utente vuole che registrazione, login e dati personali vengano salvati davvero in produzione. Il problema individuato e che SQLite locale (`capitaleyes.db`) funziona in sviluppo, ma su DigitalOcean App Platform il filesystem non e persistente dopo redeploy o sostituzione dell'app.
+
+### Database scelto
+
+E stato creato un progetto Supabase:
+
+```text
+https://jujznnewdylqnfrnkovu.supabase.co
+```
+
+Supabase verra usato come PostgreSQL esterno. GoDaddy resta rilevante solo per dominio/DNS, non per il database.
+
+### Modifiche locali
+
+Backend `main.py`:
+
+- aggiunto supporto a `DATABASE_URL`;
+- se `DATABASE_URL` e presente, il backend usa PostgreSQL/Supabase tramite `psycopg`;
+- se `DATABASE_URL` non e presente, resta attivo SQLite locale con `capitaleyes.db`;
+- aggiunta compatibilita PostgreSQL per schema utenti, sessioni, token verifica email e dati prodotto;
+- aggiunta conversione placeholder da SQLite a PostgreSQL;
+- per Supabase viene aggiunto automaticamente `sslmode=require` se assente;
+- disabilitati prepared statement server-side con `prepare_threshold=None`, piu adatto ai pooler Supabase.
+
+Dipendenze:
+
+- `requirements.txt` ora include `psycopg[binary]>=3.2,<4`.
+
+Documentazione:
+
+- `DEPLOY_DIGITALOCEAN.md` include i passaggi per configurare `DATABASE_URL` su DigitalOcean.
+
+### Verifiche locali eseguite
+
+- compilazione `main.py`;
+- installazione dipendenze da `requirements.txt`;
+- server locale con SQLite temporaneo;
+- registrazione account;
+- sessione utente via cookie;
+- salvataggio dati su `personal-financial-life-plan`;
+- rilettura dati salvati.
+
+### Da fare su Supabase/DigitalOcean
+
+1. In Supabase aprire `Project Settings` > `Database` > `Connection string`.
+2. Copiare la stringa PostgreSQL del pooler, inserendo la password database.
+3. In DigitalOcean App Platform aggiungere `DATABASE_URL` come variabile runtime cifrata del componente web.
+4. Fare redeploy.
+5. Testare online registrazione, logout/login e permanenza dati dopo redeploy.
