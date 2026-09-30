@@ -56,15 +56,18 @@ APP_PUBLIC_URL = os.environ.get("CAPITALEYES_PUBLIC_URL", "").strip().rstrip("/"
 SHOW_DEV_VERIFICATION_LINK = os.environ.get("CAPITALEYES_SHOW_VERIFICATION_LINK", "").strip().lower() in {"1", "true", "yes"}
 EMAIL_CONFIRMATION_REQUIRED = os.environ.get("CAPITALEYES_REQUIRE_EMAIL_CONFIRMATION", "").strip().lower() in {"1", "true", "yes"}
 PAGE_ROUTES = {
+    "/mobile-app": "/mobile-app.html",
+    "/mobile-planner": "/mobile-planner.html",
+    "/mobile-dashboard": "/mobile-dashboard.html",
     "/platform": "/platform.html",
     "/account": "/account.html",
     "/privacy": "/privacy.html",
     "/backtest": "/backtest.html",
     "/portfolio-tracker": "/portfolio-tracker.html",
-    "/cycle-life-budgeting": "/cycle-life-budgeting.html",
+    "/cycle-life-budgeting": "/mobile-planner.html",
     "/e-learning": "/e-learning.html",
 }
-PROTECTED_PAGE_ROUTES = {"/platform", "/backtest", "/portfolio-tracker", "/cycle-life-budgeting", "/e-learning"}
+PROTECTED_PAGE_ROUTES = {"/platform", "/backtest", "/portfolio-tracker", "/cycle-life-budgeting", "/mobile-planner", "/mobile-dashboard", "/e-learning"}
 PROTECTED_PAGE_FILES = {PAGE_ROUTES[route] for route in PROTECTED_PAGE_ROUTES}
 PROTECTED_FILE_ROUTES = {file_path: route for route, file_path in PAGE_ROUTES.items() if route in PROTECTED_PAGE_ROUTES}
 PROTECTED_GET_APIS = {"/api/search", "/api/backtest"}
