@@ -231,6 +231,7 @@ a {
 .header-action {
   color: #0b0d0d;
   background: var(--ink);
+  justify-self: end;
 }
 
 .hero {
