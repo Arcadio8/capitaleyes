@@ -15,6 +15,52 @@
     sans-serif;
 }
 
+/* Minimal platform section below the animated hero. */
+.direct-tools {
+  min-height: 55svh;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+  padding: clamp(24px, 5vw, 72px);
+}
+
+.direct-tool {
+  position: relative;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: clamp(24px, 4vw, 54px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(105, 213, 199, 0.15), rgba(255, 248, 234, 0.025));
+  transition: transform 250ms ease, border-color 250ms ease;
+}
+
+.direct-tool::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(120deg, transparent, rgba(105, 213, 199, 0.18), transparent);
+  transform: translateX(-75%) rotate(8deg);
+  transition: transform 650ms ease;
+}
+
+.direct-tool:hover { transform: translateY(-6px); border-color: rgba(105, 213, 199, 0.55); }
+.direct-tool:hover::before { transform: translateX(75%) rotate(8deg); }
+.direct-tool small, .direct-tool span { position: relative; z-index: 1; color: var(--teal); font-weight: 900; }
+.direct-tool strong { position: relative; z-index: 1; max-width: 650px; font-size: clamp(36px, 5vw, 76px); line-height: 0.95; letter-spacing: -0.055em; }
+.direct-tool span { align-self: flex-end; font-size: 14px; }
+.planner-tool { background: linear-gradient(145deg, rgba(242, 185, 103, 0.17), rgba(255, 248, 234, 0.025)); }
+.planner-tool small, .planner-tool span { color: var(--amber); }
+
+@media (max-width: 680px) {
+  .direct-tools { grid-template-columns: 1fr; padding: 12px; }
+  .direct-tool { min-height: 220px; }
+}
+
 * {
   box-sizing: border-box;
 }
