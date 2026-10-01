@@ -400,6 +400,9 @@ h1 {
   transform: translateY(-2px);
 }
 
+.product-enter { display:block; margin-top:18px; color:var(--amber); font-size:13px; }
+.access-actions { display:flex; flex-wrap:wrap; gap:12px; }
+
 .live-panel {
   position: absolute;
   right: min(5vw, 76px);

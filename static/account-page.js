@@ -57,7 +57,7 @@ function redirectTarget() {
   if (!raw) return fallback;
   try {
     const url = new URL(raw, window.location.origin);
-    const allowedPaths = new Set(["/platform", "/backtest", "/portfolio-tracker", "/cycle-life-budgeting", "/e-learning"]);
+    const allowedPaths = new Set(["/platform", "/backtest", "/cycle-life-budgeting"]);
     if (url.origin !== window.location.origin || !allowedPaths.has(url.pathname)) return fallback;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {

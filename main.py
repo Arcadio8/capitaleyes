@@ -45,7 +45,7 @@ EMAIL_VERIFICATION_TTL_SECONDS = 60 * 60 * 24
 PASSWORD_HASH_ITERATIONS = 260_000
 MAX_JSON_BODY_BYTES = 256 * 1024
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-PRODUCT_KEYS = {"personal-financial-life-plan", "backtest", "portfolio-tracker", "e-learning"}
+PRODUCT_KEYS = {"personal-financial-life-plan", "backtest"}
 CONSENT_VERSION = "2026-07-23"
 SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
@@ -63,11 +63,9 @@ PAGE_ROUTES = {
     "/account": "/account.html",
     "/privacy": "/privacy.html",
     "/backtest": "/backtest.html",
-    "/portfolio-tracker": "/portfolio-tracker.html",
     "/cycle-life-budgeting": "/mobile-planner.html",
-    "/e-learning": "/e-learning.html",
 }
-PROTECTED_PAGE_ROUTES = {"/platform", "/backtest", "/portfolio-tracker", "/cycle-life-budgeting", "/mobile-planner", "/mobile-dashboard", "/e-learning"}
+PROTECTED_PAGE_ROUTES = {"/platform", "/backtest", "/cycle-life-budgeting", "/mobile-planner", "/mobile-dashboard"}
 PROTECTED_PAGE_FILES = {PAGE_ROUTES[route] for route in PROTECTED_PAGE_ROUTES}
 PROTECTED_FILE_ROUTES = {file_path: route for route, file_path in PAGE_ROUTES.items() if route in PROTECTED_PAGE_ROUTES}
 PROTECTED_GET_APIS = {"/api/search", "/api/backtest"}
