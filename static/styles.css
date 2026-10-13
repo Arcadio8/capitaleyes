@@ -234,6 +234,13 @@ a {
   justify-self: end;
 }
 
+.account-entry { gap:8px; }
+.account-avatar { width:27px; height:27px; display:grid; place-items:center; flex:0 0 27px; border-radius:50%; color:var(--ink); background:#0b0d0d; }
+.account-avatar svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; }
+.account-avatar b { color:var(--ink); font-size:12px; line-height:1; text-transform:uppercase; }
+.account-entry.authenticated { color:var(--ink); background:rgba(7,9,11,.78); border:1px solid rgba(255,248,234,.25); }
+.account-entry.authenticated .account-avatar { color:#080a0b; background:var(--amber); }
+
 .hero {
   position: relative;
   min-height: 86svh;

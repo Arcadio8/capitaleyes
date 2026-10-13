@@ -5,6 +5,10 @@ const canvas = document.querySelector("#motion-canvas");
 const riskValue = document.querySelector("#risk-value");
 const alphaValue = document.querySelector("#alpha-value");
 const ctx = canvas.getContext("2d");
+const headerAccount = document.querySelector("#header-account");
+const accountLabel = document.querySelector("#account-label");
+const accountInitial = document.querySelector("#account-initial");
+const accountGuestIcon = document.querySelector("#account-guest-icon");
 
 let width = 0;
 let height = 0;
@@ -149,6 +153,23 @@ function handleScroll() {
   progress.style.width = `${Math.min(100, Math.max(0, progressValue))}%`;
 }
 
+async function updateHeaderAccount() {
+  try {
+    const response = await fetch("/api/auth/me", { credentials: "same-origin" });
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (!payload.user?.email) return;
+    accountInitial.textContent = payload.user.email.trim().charAt(0).toUpperCase();
+    accountInitial.hidden = false;
+    accountGuestIcon.hidden = true;
+    accountLabel.textContent = "Il mio account";
+    headerAccount.href = "/account?tab=manage";
+    headerAccount.classList.add("authenticated");
+  } catch {
+    // Keep the public login action when account status is unavailable.
+  }
+}
+
 window.addEventListener("load", () => {
   setTimeout(() => loader.classList.add("done"), 480);
 });
@@ -163,4 +184,5 @@ window.addEventListener("pointermove", (event) => {
 resizeCanvas();
 setupReveal();
 handleScroll();
+updateHeaderAccount();
 animate();

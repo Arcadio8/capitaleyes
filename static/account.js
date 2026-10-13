@@ -49,7 +49,7 @@
     if (!root) return;
     const user = state.user;
     const title = user ? "Account" : "Accedi";
-    const toggleText = user ? user.email : "Account";
+    const toggleText = user ? "Il mio account" : "Account";
     root.innerHTML = `
       <button class="ce-account-toggle" type="button" data-account-toggle>${escapeHtml(toggleText)}</button>
       <section class="ce-account-panel" ${state.open ? "" : "hidden"}>

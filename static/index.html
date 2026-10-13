@@ -10,7 +10,7 @@
     />
     <link rel="preload" href="/assets/capital-eyes-home-cinematic.png" as="image" />
     <link rel="stylesheet" href="/account.css?v=20260724-1" />
-    <link rel="stylesheet" href="/styles.css?v=20260724-1" />
+    <link rel="stylesheet" href="/styles.css?v=20261013-1" />
   </head>
   <body>
     <div class="intro-loader" id="intro-loader" aria-hidden="true">
@@ -31,7 +31,13 @@
         <span class="brand-mark">CE</span>
         <span>CapitalEyes</span>
       </a>
-      <a class="header-action" href="/account">Accedi / Iscriviti</a>
+      <a class="header-action account-entry" id="header-account" href="/account">
+        <span class="account-avatar" aria-hidden="true">
+          <svg id="account-guest-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c.6-4 3-6 7-6s6.4 2 7 6"></path></svg>
+          <b id="account-initial" hidden></b>
+        </span>
+        <span id="account-label">Accedi / Iscriviti</span>
+      </a>
     </header>
 
     <main>
@@ -108,7 +114,6 @@
       </section>
     </main>
 
-    <script src="/account.js?v=20260724-1" defer></script>
-    <script src="/app.js?v=20260724-1" type="module"></script>
+    <script src="/app.js?v=20261013-1" type="module"></script>
   </body>
 </html>
