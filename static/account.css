@@ -1,3 +1,5 @@
+[hidden] { display: none !important; }
+
 .ce-account {
   position: fixed;
   right: 18px;
@@ -431,6 +433,11 @@
   font-weight: 900;
   cursor: pointer;
 }
+
+.account-text-button { border:0; padding:4px 0; color:var(--teal); background:transparent; font:800 12px inherit; text-align:left; cursor:pointer; }
+.account-danger-zone { border-top:1px solid rgba(214,106,94,.28); }
+.account-danger { min-height:48px; border:1px solid rgba(214,106,94,.55); border-radius:8px; color:#fff8ea; background:rgba(214,106,94,.18); font:900 14px inherit; cursor:pointer; }
+.account-danger:hover { background:rgba(214,106,94,.3); }
 
 .account-message {
   min-height: 42px;

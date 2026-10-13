@@ -31,6 +31,7 @@
         <div class="account-tabs" role="tablist" aria-label="Account">
           <button class="active" type="button" data-account-tab="login">Accedi</button>
           <button type="button" data-account-tab="register">Crea account</button>
+          <button type="button" data-account-tab="manage" id="manage-tab" hidden>Gestisci account</button>
         </div>
 
         <form class="account-form active" id="login-form">
@@ -47,6 +48,42 @@
             <input name="password" type="password" autocomplete="current-password" minlength="10" required />
           </label>
           <button class="account-primary" type="submit">Accedi</button>
+          <button class="account-text-button" type="button" data-open-forgot>Hai dimenticato la password?</button>
+        </form>
+
+        <form class="account-form" id="forgot-form">
+          <div class="account-form-head">
+            <span>Recupero password</span>
+            <h2>Ricevi un link sicuro</h2>
+          </div>
+          <p class="account-help">Inserisci l'email del tuo account. Il link sarà valido per un'ora.</p>
+          <label><span>Email</span><input name="email" type="email" autocomplete="email" required /></label>
+          <button class="account-primary" type="submit">Invia link di recupero</button>
+          <button class="account-text-button" type="button" data-account-tab="login">Torna al login</button>
+        </form>
+
+        <form class="account-form" id="reset-form">
+          <div class="account-form-head">
+            <span>Nuova password</span>
+            <h2>Scegli una nuova password</h2>
+          </div>
+          <div class="account-two">
+            <label><span>Nuova password</span><input name="password" type="password" autocomplete="new-password" minlength="10" required /></label>
+            <label><span>Ripeti password</span><input name="passwordConfirm" type="password" autocomplete="new-password" minlength="10" required /></label>
+          </div>
+          <p class="account-help">Minimo 10 caratteri, usando almeno tre tra maiuscole, minuscole, numeri e simboli.</p>
+          <button class="account-primary" type="submit">Aggiorna password</button>
+        </form>
+
+        <form class="account-form account-danger-zone" id="manage-form">
+          <div class="account-form-head">
+            <span>Gestione account</span>
+            <h2>Elimina definitivamente l'account</h2>
+          </div>
+          <p class="account-help">Questa operazione elimina account, sessioni, piani e configurazioni salvate. Non può essere annullata.</p>
+          <label><span>Password attuale</span><input name="password" type="password" autocomplete="current-password" required /></label>
+          <label><span>Scrivi ELIMINA</span><input name="confirmation" type="text" autocomplete="off" required /></label>
+          <button class="account-danger" type="submit">Elimina account e dati</button>
         </form>
 
         <form class="account-form" id="register-form">
@@ -91,6 +128,6 @@
         <a class="account-back" href="/platform">Torna alla platform</a>
       </section>
     </main>
-    <script src="/account-page.js?v=20260724-1" type="module"></script>
+    <script src="/account-page.js?v=20261013-1" type="module"></script>
   </body>
 </html>

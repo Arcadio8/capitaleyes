@@ -42,6 +42,7 @@ USE_POSTGRES = bool(DATABASE_URL)
 SESSION_COOKIE = "capitaleyes_session"
 SESSION_TTL_SECONDS = 60 * 60 * 24 * 30
 EMAIL_VERIFICATION_TTL_SECONDS = 60 * 60 * 24
+PASSWORD_RESET_TTL_SECONDS = 60 * 60
 PASSWORD_HASH_ITERATIONS = 260_000
 MAX_JSON_BODY_BYTES = 256 * 1024
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -61,6 +62,7 @@ PAGE_ROUTES = {
     "/mobile-dashboard": "/mobile-dashboard.html",
     "/platform": "/platform.html",
     "/account": "/account.html",
+    "/reset-password": "/account.html",
     "/privacy": "/privacy.html",
     "/backtest": "/backtest.html",
     "/cycle-life-budgeting": "/mobile-planner.html",
@@ -276,6 +278,18 @@ def initialize_database() -> None:
         )
         connection.execute(
             f"""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                token_hash TEXT PRIMARY KEY,
+                user_id {user_id_type} NOT NULL,
+                created_at BIGINT NOT NULL,
+                expires_at BIGINT NOT NULL,
+                used_at TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS product_data (
                 user_id {user_id_type} NOT NULL,
                 product_key TEXT NOT NULL,
@@ -288,8 +302,10 @@ def initialize_database() -> None:
         )
         connection.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions (expires_at)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_email_tokens_expires_at ON email_verification_tokens (expires_at)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens (expires_at)")
         connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (now_timestamp(),))
         connection.execute("DELETE FROM email_verification_tokens WHERE expires_at <= ? AND used_at IS NULL", (now_timestamp(),))
+        connection.execute("DELETE FROM password_reset_tokens WHERE expires_at <= ? AND used_at IS NULL", (now_timestamp(),))
 
 
 def normalize_email(value: str) -> str:
@@ -398,6 +414,22 @@ def create_email_verification_token(user_id: int) -> tuple[str, int]:
     return token, expires_at
 
 
+def create_password_reset_token(user_id: int) -> tuple[str, int]:
+    token = secrets.token_urlsafe(32)
+    issued_at = now_timestamp()
+    expires_at = issued_at + PASSWORD_RESET_TTL_SECONDS
+    with database_connection() as connection:
+        connection.execute("DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL", (user_id,))
+        connection.execute(
+            """
+            INSERT INTO password_reset_tokens (token_hash, user_id, created_at, expires_at, used_at)
+            VALUES (?, ?, ?, ?, NULL)
+            """,
+            (hash_session_token(token), user_id, issued_at, expires_at),
+        )
+    return token, expires_at
+
+
 def smtp_configured() -> bool:
     return bool(SMTP_HOST and SMTP_FROM)
 
@@ -436,6 +468,16 @@ def send_verification_email(email: str, verification_url: str) -> bool:
         "Il link scade dopo 24 ore. Se non hai richiesto tu questo account, ignora questa email."
     )
     return send_email(email, "Conferma il tuo account CapitalEyes", body)
+
+
+def send_password_reset_email(email: str, reset_url: str) -> bool:
+    body = (
+        "Hai richiesto di cambiare la password del tuo account CapitalEyes.\n\n"
+        f"Apri questo link per scegliere una nuova password:\n{reset_url}\n\n"
+        "Il link scade dopo un'ora e puo essere usato una sola volta. "
+        "Se non hai fatto tu la richiesta, ignora questa email."
+    )
+    return send_email(email, "Recupero password CapitalEyes", body)
 
 
 def find_user_by_session(token: str | None) -> AuthUser | None:
@@ -1483,6 +1525,15 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/auth/resend-verification":
             self.handle_resend_verification()
             return
+        if parsed.path == "/api/auth/forgot-password":
+            self.handle_forgot_password()
+            return
+        if parsed.path == "/api/auth/reset-password":
+            self.handle_reset_password()
+            return
+        if parsed.path == "/api/auth/delete-account":
+            self.handle_delete_account()
+            return
         self.send_json({"error": "Endpoint non trovato."}, HTTPStatus.NOT_FOUND)
 
     def do_PUT(self) -> None:  # noqa: N802 - stdlib hook.
@@ -1598,6 +1649,9 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
 
     def verification_url(self, token: str) -> str:
         return f"{self.public_base_url()}/verify-email?token={urllib.parse.quote(token)}"
+
+    def password_reset_url(self, token: str) -> str:
+        return f"{self.public_base_url()}/reset-password?token={urllib.parse.quote(token)}"
 
     def request_is_local(self) -> bool:
         host = (self.headers.get("Host") or "").split(":")[0].lower()
@@ -1899,6 +1953,91 @@ class CapitalEyesHandler(SimpleHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             print(f"Unexpected resend verification error: {exc}")
             self.send_json({"error": "Errore interno durante il reinvio verifica."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def handle_forgot_password(self) -> None:
+        generic_message = "Se l'account esiste, riceverai un'email con il link per cambiare la password."
+        try:
+            payload = self.read_json_body()
+            email = normalize_email(str(payload.get("email", "")))
+            with database_connection() as connection:
+                row = connection.execute("SELECT id, email FROM users WHERE email = ?", (email,)).fetchone()
+            response: dict[str, Any] = {"ok": True, "message": generic_message, "emailConfigured": smtp_configured()}
+            if row:
+                reset_token, expires_at = create_password_reset_token(int(row["id"]))
+                reset_url = self.password_reset_url(reset_token)
+                response["emailSent"] = send_password_reset_email(str(row["email"]), reset_url)
+                response["expiresAt"] = expires_at
+                if self.request_is_local() or SHOW_DEV_VERIFICATION_LINK:
+                    response["resetUrl"] = reset_url
+            self.send_json(response)
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected forgot password error: {exc}")
+            self.send_json({"error": "Errore interno durante il recupero password."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def handle_reset_password(self) -> None:
+        try:
+            payload = self.read_json_body()
+            token = str(payload.get("token", ""))
+            password = validate_password(str(payload.get("password", "")))
+            password_confirm = str(payload.get("passwordConfirm", ""))
+            if not token:
+                raise ApiError("Link di recupero non valido.")
+            if not hmac.compare_digest(password, password_confirm):
+                raise ApiError("Le due password non coincidono.")
+            token_hash = hash_session_token(token)
+            changed_at = utc_now_iso()
+            with database_connection() as connection:
+                row = connection.execute(
+                    """
+                    SELECT user_id, expires_at FROM password_reset_tokens
+                    WHERE token_hash = ? AND used_at IS NULL
+                    """,
+                    (token_hash,),
+                ).fetchone()
+                if not row or int(row["expires_at"]) <= now_timestamp():
+                    raise ApiError("Link di recupero scaduto o gia utilizzato.")
+                user_id = int(row["user_id"])
+                connection.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash(password), user_id))
+                connection.execute("UPDATE password_reset_tokens SET used_at = ? WHERE token_hash = ?", (changed_at, token_hash))
+                connection.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+            session_token, expires_at = create_session(user_id)
+            with database_connection() as connection:
+                row = connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+            self.send_json(
+                {"ok": True, "user": serialize_user(public_user(row)), "expiresAt": expires_at, "message": "Password aggiornata."},
+                set_cookie=session_token,
+            )
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected reset password error: {exc}")
+            self.send_json({"error": "Errore interno durante il cambio password."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def handle_delete_account(self) -> None:
+        try:
+            user = self.require_user()
+            payload = self.read_json_body()
+            password = str(payload.get("password", ""))
+            confirmation = str(payload.get("confirmation", "")).strip().upper()
+            if confirmation != "ELIMINA":
+                raise ApiError("Scrivi ELIMINA per confermare la cancellazione definitiva.")
+            with database_connection() as connection:
+                row = connection.execute("SELECT password_hash FROM users WHERE id = ?", (user.id,)).fetchone()
+                if not row or not verify_password(password, str(row["password_hash"])):
+                    raise ApiError("Password non valida.", HTTPStatus.UNAUTHORIZED)
+                connection.execute("DELETE FROM product_data WHERE user_id = ?", (user.id,))
+                connection.execute("DELETE FROM sessions WHERE user_id = ?", (user.id,))
+                connection.execute("DELETE FROM email_verification_tokens WHERE user_id = ?", (user.id,))
+                connection.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", (user.id,))
+                connection.execute("DELETE FROM users WHERE id = ?", (user.id,))
+            self.send_json({"ok": True, "message": "Account e dati personali eliminati definitivamente."}, clear_cookie=True)
+        except ApiError as exc:
+            self.send_json({"error": exc.message}, exc.status)
+        except Exception as exc:  # noqa: BLE001
+            print(f"Unexpected account deletion error: {exc}")
+            self.send_json({"error": "Errore interno durante la cancellazione account."}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def handle_user_data_get(self, raw_query: str) -> None:
         try:
